@@ -1,0 +1,33 @@
+operations.o: fs/operations.c fs/operations.h fs/config.h fs/state.h \
+ fs/betterassert.h
+state.o: fs/state.c fs/state.h fs/config.h fs/operations.h \
+ fs/betterassert.h
+copy_from_external_empty.o: tests/copy_from_external_empty.c \
+ fs/operations.h fs/config.h
+copy_from_external_errors.o: tests/copy_from_external_errors.c \
+ fs/operations.h fs/config.h
+copy_from_external_large.o: tests/copy_from_external_large.c \
+ fs/operations.h fs/config.h
+copy_from_external_small.o: tests/copy_from_external_small.c \
+ fs/operations.h fs/config.h
+t1_2_1a_symlink_simple.o: tests/t1_2_1a_symlink_simple.c fs/operations.h \
+ fs/config.h
+t1_2_1b_hardlink_simple.o: tests/t1_2_1b_hardlink_simple.c \
+ fs/operations.h fs/config.h
+t1_2_2_data_blocks_created.o: tests/t1_2_2_data_blocks_created.c \
+ fs/operations.h fs/config.h
+t1_2_3_symlink_resolution_failure.o: \
+ tests/t1_2_3_symlink_resolution_failure.c tests/../fs/operations.h \
+ tests/../fs/config.h
+t1_2_4_hardlink_indep.o: tests/t1_2_4_hardlink_indep.c fs/operations.h \
+ fs/config.h
+t1_2_5_clear_data_blocks.o: tests/t1_2_5_clear_data_blocks.c \
+ fs/operations.h fs/config.h
+t1_2_6_remove_file_create_new.o: tests/t1_2_6_remove_file_create_new.c \
+ tests/../fs/operations.h tests/../fs/config.h
+t1_2_7_create_hard_link_with_soft_link.o: \
+ tests/t1_2_7_create_hard_link_with_soft_link.c fs/operations.h \
+ fs/config.h
+t1_2_8_hard_link_unlinking.o: tests/t1_2_8_hard_link_unlinking.c \
+ tests/../fs/operations.h tests/../fs/config.h
+test1.o: tests/test1.c fs/operations.h fs/config.h
