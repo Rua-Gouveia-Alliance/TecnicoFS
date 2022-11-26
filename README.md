@@ -1,3 +1,3 @@
 # TecnicoFS
 
-[Enunciado](https://github.com/Rua-Gouveia-Alliance/enunciado.md)
+[Enunciado](https://github.com/Rua-Gouveia-Alliance/TecnicoFS/blob/main/enunciado.md)
