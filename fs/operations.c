@@ -136,7 +136,8 @@ int tfs_sym_link(char const *target, char const *link_name) {
     (void)target;
     (void)link_name;
     // ^ this is a trick to keep the compiler from complaining about unused
-    // variables. TODO: remove
+    // variables.
+    // TODO: remove
 
     PANIC("TODO: tfs_sym_link");
 }
@@ -145,7 +146,8 @@ int tfs_link(char const *target, char const *link_name) {
     (void)target;
     (void)link_name;
     // ^ this is a trick to keep the compiler from complaining about unused
-    // variables. TODO: remove
+    // variables.
+    // TODO: remove
 
     PANIC("TODO: tfs_link");
 }
@@ -236,7 +238,8 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
 int tfs_unlink(char const *target) {
     (void)target;
     // ^ this is a trick to keep the compiler from complaining about unused
-    // variables. TODO: remove
+    // variables.
+    // TODO: remove
 
     PANIC("TODO: tfs_unlink");
 }
@@ -245,7 +248,8 @@ int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
     (void)source_path;
     (void)dest_path;
     // ^ this is a trick to keep the compiler from complaining about unused
-    // variables. TODO: remove
+    // variables.
+    // TODO: remove
 
     PANIC("TODO: tfs_copy_from_external_fs");
 }
