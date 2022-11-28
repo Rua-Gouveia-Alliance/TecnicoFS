@@ -1,11 +1,18 @@
 # TecnicoFS
 
-# Projeto base (ponto de partida)
+# List of contents
+
+1. [Enunciado](#Enunciado)
+1. [Pull updates](#Pull-updates)
+
+# Enunciado
+
+## Projeto base (ponto de partida)
 
 O projeto base é o TecnicoFS (Técnico _File System_), um sistema de ficheiros simplificado em modo utilizador.
 É implementado como uma biblioteca, que pode ser usada por qualquer processo cliente que pretenda ter uma instância privada de um sistema de ficheiros no qual pode manter os seus dados.
 
-## Interface de programação
+### Interface de programação
 
 O TecnicoFS oferece uma interface de programação (API) inspirada na API de sistema de ficheiros POSIX.
 No entanto, para simplificar o projeto, a API do TecnicoFS oferece apenas um subconjunto de funções com interface simplificada:
@@ -23,7 +30,7 @@ Além destas funções, existem as funções de inicialização e destruição d
 O código fonte do TecnicoFS encontra-se disponível [neste repositório](https://github.com/tecnico-so/projeto-so-2022-23).
 A descrição detalhada de cada função pode ser encontrada na documentação no código fonte do TecnicoFS.
 
-## Estado do sistema de ficheiros
+### Estado do sistema de ficheiros
 
 Tal como em FS tradicionais modernos, o conteúdo do FS encontra-se referenciado numa estrutura de dados principal chamada tabela de _i-nodes_, global ao FS.
 Cada _i-node_ representa uma diretoria ou um ficheiro no TecnicoFS, que tem um identificador único chamado _i-number_.
@@ -44,7 +51,7 @@ A tabela de ficheiros abertos é descartada quando o sistema é desligado ou ter
 Nas aulas teóricas da 2ª semana, o código base será apresentado e discutido.
 Recomendamos a todos os estudantes que frequentem essas aulas antes de começarem a desenvolver a solução.
 
-## Simplificações
+### Simplificações
 
 Além de uma API simplificada, o desenho e implementação do TecnicoFS adotam algumas simplificações fundamentais, que sumarizamos de seguida:
 
@@ -59,11 +66,11 @@ Por outras palavras, não é _thread-safe_.
 - As estruturas de dados que, em teoria, deveriam ser duráveis, não são mantidas em memória secundária.
 Quando o TecnicoFS é terminado, o conteúdo destas estruturas de dados é perdido.
 
-# 1º Exercício
+## 1º Exercício
 
 No 1º exercício pretende-se estender a versão base do TecnicoFS com as funcionalidades que são descritas de seguida.
 
-## 1.1 Cópia de um sistema de ficheiros externo
+### 1.1 Cópia de um sistema de ficheiros externo
 
 Pretende-se que seja oferecida e implementada uma nova função:
 
@@ -79,7 +86,7 @@ Caso contrário, o conteúdo prévio do ficheiro já existente deve ser totalmen
 
 Além de implementar esta funcionalidade no TecnicoFS, cada grupo deve desenvolver também pelo menos um programa de teste que demonstre e verifique a correção da solução proposta.
 
-## 1.2 Nomes alternativos e Atalhos
+### 1.2 Nomes alternativos e Atalhos
 
 Pretende-se permitir a criação e apagamento de **nomes alternativos** (_hard links_) e **atalhos** (_soft links_) para ficheiros.
 Ambos os tipos de _links_ permitem criar ligações alternativas (i.e., pontos de acessos alternativos) para ficheiros pré-existentes no sistemas de ficheiros.
@@ -127,7 +134,7 @@ Além da adaptação do TecnicoFS para o tornar _thread-safe,_ cada grupo deve *
 
 ----
 
-## Submissão e avaliação
+### Submissão e avaliação
 
 A submissão é feita através do Fénix **até ao dia 19/Dezembro/2022 às 17h00**.
 
@@ -143,10 +150,10 @@ A avaliação será feita de acordo com o método de avaliação descrito na pá
 
 _Bom trabalho!_
 
-## Pull updates
+# Pull updates
 
 ```
 git remote add public https://github.com/tecnico-so/projeto-so-2022-23
-git pull public main # Creates a merge commit
+git pull public main
 git push origin main
 ```
