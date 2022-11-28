@@ -9,7 +9,7 @@ int main() {
 
     tfs_params params = tfs_default_params();
     params.max_inode_count = 3;
-    params.max_block_count = 2;
+    params.max_block_count = 3;
     assert(tfs_init(&params) != -1);
 
     int fd = tfs_open(file_path, TFS_O_CREAT);

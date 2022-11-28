@@ -17,7 +17,7 @@ void _format_path(char *dest, size_t max_size, size_t rep, size_t file_idx) {
     assert(ret <= max_size);
 }
 
-int _open(size_t rep, size_t file_idx, int mode) {
+int _open(size_t rep, size_t file_idx, tfs_file_mode_t mode) {
     char path[MAX_PATH_SIZE];
     _format_path(path, MAX_PATH_SIZE, rep, file_idx);
     return tfs_open(path, mode);
