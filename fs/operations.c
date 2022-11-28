@@ -1,10 +1,12 @@
 #include "operations.h"
 #include "config.h"
 #include "state.h"
+#include <fcntl.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "betterassert.h"
 
@@ -245,11 +247,28 @@ int tfs_unlink(char const *target) {
 }
 
 int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
-    (void)source_path;
-    (void)dest_path;
-    // ^ this is a trick to keep the compiler from complaining about unused
-    // variables.
-    // TODO: remove
+    int source_handle = open(source_path, O_RDONLY);
+    if (source_handle == -1)
+        return -1;
 
-    PANIC("TODO: tfs_copy_from_external_fs");
+    int dest_handle = tfs_open(dest_path, TFS_O_TRUNC | TFS_O_CREAT);
+    if (dest_handle == -1)
+        return -1;
+
+    char *buffer = malloc(state_block_size());
+    if (buffer == NULL)
+        return -1;
+
+    ssize_t file_size = read(source_handle, buffer, state_block_size());
+    if (file_size == -1)
+        return -1;
+
+    ssize_t written = tfs_write(dest_handle, buffer, (size_t)file_size);
+    if (written == -1)
+        return -1;
+
+    close(source_handle);
+    tfs_close(dest_handle);
+    free(buffer);
+    return 0;
 }
