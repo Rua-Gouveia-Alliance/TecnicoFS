@@ -2,6 +2,7 @@
 tests/*
 !tests/*.c
 !tests/*.h
+!tests/*.txt
 
 ######################
 # C Ignores
