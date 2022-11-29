@@ -150,7 +150,7 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
 
 int tfs_sym_link(char const *target, char const *link_name) {
     ALWAYS_ASSERT(MAX_FILE_NAME <= state_block_size(),
-            "tfs_sym_link: maximum file name size if bigger than block size")
+            "tfs_sym_link: maximum filename size is bigger than block size")
         
     // Checks if the path name is valid
     if (!valid_pathname(target) || !valid_pathname(link_name)) {
