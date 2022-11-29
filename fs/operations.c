@@ -238,12 +238,36 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
 }
 
 int tfs_unlink(char const *target) {
-    (void)target;
-    // ^ this is a trick to keep the compiler from complaining about unused
-    // variables.
-    // TODO: remove
+    // Checks if the path name is valid
+    if (!valid_pathname(target)) {
+        return -1;
+    }
 
-    PANIC("TODO: tfs_unlink");
+    // get inum
+    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
+    ALWAYS_ASSERT(root_dir_inode != NULL,
+                  "tfs_unlink: root dir inode must exist");
+    int inum = tfs_lookup(target, root_dir_inode);
+    if (inum == -1)
+        return -1;
+
+    // clear dir entry
+    int err = clear_dir_entry(root_dir_inode, target); 
+    if (err == -1)
+        return -1;
+
+    // get inode
+    inode_t *inode = inode_get(inum);
+    ALWAYS_ASSERT(inode != NULL,
+                  "tfs_unlink: directory files must have an inode");
+
+    // decrease hard link count and if 0 delete inode
+    inode->i_hardl--;
+    if(inode->i_hardl > 0)
+        return 0;
+    inode_delete(inum);
+
+    return 0;
 }
 
 int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
