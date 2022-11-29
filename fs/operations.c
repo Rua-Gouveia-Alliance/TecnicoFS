@@ -145,13 +145,30 @@ int tfs_sym_link(char const *target, char const *link_name) {
 }
 
 int tfs_link(char const *target, char const *link_name) {
-    (void)target;
-    (void)link_name;
-    // ^ this is a trick to keep the compiler from complaining about unused
-    // variables.
-    // TODO: remove
+    int err;
+    if (!valid_pathname(target) || !valid_pathname(link_name))
+        return -1;
+    
+    // get inum
+    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
+    ALWAYS_ASSERT(root_dir_inode != NULL,
+                  "tfs_unlink: root dir inode must exist");
+    int inum = tfs_lookup(target, root_dir_inode);
+    if (inum == -1)
+        return -1;
 
-    PANIC("TODO: tfs_link");
+    // add dir entry
+    err = add_dir_entry(root_dir_inode, link_name + 1, inum);
+    if (err == -1)
+        return -1;
+
+    // get inode and update hard link count
+    inode_t *inode = inode_get(inum);
+    ALWAYS_ASSERT(inode != NULL,
+                  "tfs_link: directory files must have an inode");
+    inode->i_hardl++;
+
+    return 0;
 }
 
 int tfs_close(int fhandle) {
