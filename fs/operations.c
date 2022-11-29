@@ -259,7 +259,6 @@ int tfs_unlink(char const *target) {
     if (!valid_pathname(target)) {
         return -1;
     }
-    printf("hello1\n");
 
     // get inum
     inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
@@ -268,13 +267,11 @@ int tfs_unlink(char const *target) {
     int inum = tfs_lookup(target, root_dir_inode);
     if (inum == -1)
         return -1;
-    printf("hello1\n");
 
     // clear dir entry
     int err = clear_dir_entry(root_dir_inode, target+1); 
     if (err == -1)
         return -1;
-    printf("hello1\n");
 
     // get inode
     inode_t *inode = inode_get(inum);
