@@ -205,15 +205,19 @@ int tfs_link(char const *target, char const *link_name) {
     if (inum == -1)
         return -1;
 
+    // get inode
+    inode_t *inode = inode_get(inum);
+    ALWAYS_ASSERT(inode != NULL,
+                  "tfs_link: directory files must have an inode");
+    if (inode->i_node_type == T_SYMLINK)
+        return -1;
+
     // add dir entry
     err = add_dir_entry(root_dir_inode, link_name + 1, inum);
     if (err == -1)
         return -1;
 
-    // get inode and update hard link count
-    inode_t *inode = inode_get(inum);
-    ALWAYS_ASSERT(inode != NULL,
-                  "tfs_link: directory files must have an inode");
+    // update hard link count
     inode->i_hardl++;
 
     return 0;
