@@ -93,6 +93,20 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
         ALWAYS_ASSERT(inode != NULL,
                       "tfs_open: directory files must have an inode");
 
+        if (inode->i_node_type == T_SYMLINK) {
+            char *buffer = malloc(MAX_FILE_NAME+1);
+            char *block = data_block_get(inode->i_data_block);
+            strncpy(buffer, block, MAX_FILE_NAME);
+
+            if(tfs_open(buffer, mode) == -1) {
+                free(buffer);
+                return -1;
+            }
+
+            free(buffer);
+            return 0;
+        }
+
         // Truncate (if requested)
         if (mode & TFS_O_TRUNC) {
             if (inode->i_size > 0) {
@@ -135,13 +149,47 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
 }
 
 int tfs_sym_link(char const *target, char const *link_name) {
-    (void)target;
-    (void)link_name;
-    // ^ this is a trick to keep the compiler from complaining about unused
-    // variables.
-    // TODO: remove
+    ALWAYS_ASSERT(MAX_FILE_NAME <= state_block_size(),
+            "tfs_sym_link: maximum file name size if bigger than block size")
+        
+    // Checks if the path name is valid
+    if (!valid_pathname(target) || !valid_pathname(link_name)) {
+        return -1;
+    }
 
-    PANIC("TODO: tfs_sym_link");
+    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
+    ALWAYS_ASSERT(root_dir_inode != NULL,
+                  "tfs_sym_link: root dir inode must exist");
+    
+    // check if target exists and link does not
+    if(tfs_lookup(target, root_dir_inode) == -1 || tfs_lookup(link_name, root_dir_inode) != -1)
+        return -1;
+
+    // create symlink inode
+    int link_inum = inode_create(T_SYMLINK);
+    if (link_inum == -1) {
+        return -1; // no space in inode table
+    }
+
+    // add symlink in the root directory
+    if (add_dir_entry(root_dir_inode, link_name + 1, link_inum) == -1) {
+        inode_delete(link_inum);
+        return -1; // no space in directory
+    }
+
+    inode_t *link_inode = inode_get(link_inum);
+    // allocate new block
+    int bnum = data_block_alloc();
+    if (bnum == -1) {
+        return -1; // no space
+    }
+    link_inode->i_data_block = bnum;
+
+    // copy the path to block
+    char *block = data_block_get(bnum);
+    strncpy(block, target, MAX_FILE_NAME);
+
+    return 0;
 }
 
 int tfs_link(char const *target, char const *link_name) {

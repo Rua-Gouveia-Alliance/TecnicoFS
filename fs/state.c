@@ -233,6 +233,7 @@ int inode_create(inode_type i_type) {
         }
     } break;
     case T_FILE:
+    case T_SYMLINK:
         // In case of a new file, simply sets its size to 0
         inode_table[inumber].i_size = 0;
         inode_table[inumber].i_data_block = -1;
