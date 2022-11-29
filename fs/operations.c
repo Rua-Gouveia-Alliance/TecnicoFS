@@ -152,7 +152,7 @@ int tfs_link(char const *target, char const *link_name) {
     // get inum
     inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
     ALWAYS_ASSERT(root_dir_inode != NULL,
-                  "tfs_unlink: root dir inode must exist");
+                  "tfs_link: root dir inode must exist");
     int inum = tfs_lookup(target, root_dir_inode);
     if (inum == -1)
         return -1;
@@ -259,6 +259,7 @@ int tfs_unlink(char const *target) {
     if (!valid_pathname(target)) {
         return -1;
     }
+    printf("hello1\n");
 
     // get inum
     inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
@@ -267,11 +268,13 @@ int tfs_unlink(char const *target) {
     int inum = tfs_lookup(target, root_dir_inode);
     if (inum == -1)
         return -1;
+    printf("hello1\n");
 
     // clear dir entry
-    int err = clear_dir_entry(root_dir_inode, target); 
+    int err = clear_dir_entry(root_dir_inode, target+1); 
     if (err == -1)
         return -1;
+    printf("hello1\n");
 
     // get inode
     inode_t *inode = inode_get(inum);
@@ -280,9 +283,8 @@ int tfs_unlink(char const *target) {
 
     // decrease hard link count and if 0 delete inode
     inode->i_hardl--;
-    if(inode->i_hardl > 0)
-        return 0;
-    inode_delete(inum);
+    if(inode->i_hardl == 0)
+        inode_delete(inum);
 
     return 0;
 }
