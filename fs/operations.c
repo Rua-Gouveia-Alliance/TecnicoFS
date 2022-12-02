@@ -339,28 +339,62 @@ int tfs_unlink(char const *target) {
 }
 
 int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
-    int source_handle = open(source_path, O_RDONLY);
-    if (source_handle == -1)
+    // check if destination path is valid
+    if (!valid_pathname(dest_path)) {
+        return -1;
+    }
+
+    // open source file
+    FILE *source_handle = fopen(source_path, "r");
+    if (source_handle == NULL)
         return -1;
 
-    int dest_handle = tfs_open(dest_path, TFS_O_TRUNC | TFS_O_CREAT);
-    if (dest_handle == -1)
-        return -1;
+    // get dest inum
+    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
+    ALWAYS_ASSERT(root_dir_inode != NULL,
+                  "tfs_open: root dir inode must exist");
+    int inum = tfs_lookup(dest_path, root_dir_inode);
 
-    char *buffer = malloc(state_block_size());
-    if (buffer == NULL)
-        return -1;
+    // create dest file if it doesnt exist
+    if (inum == -1) {
+        inum = inode_create(T_FILE);
+        if (inum == -1) {
+            return -1; // no space in inode table
+        }
 
-    ssize_t file_size = read(source_handle, buffer, state_block_size());
+        // Add entry in the root directory
+        if (add_dir_entry(root_dir_inode, dest_path + 1, inum) == -1) {
+            inode_delete(inum);
+            return -1; // no space in directory
+        }
+    }
+
+    // get block number
+    inode_t *inode = inode_get(inum);
+    int bnum = inode->i_data_block;
+    
+    // if no block, alloc
+    char *block;
+    if (bnum == -1) {
+        bnum = data_block_alloc();
+        if (bnum == -1) {
+            return -1; // no space
+        }
+        inode->i_data_block = bnum;
+        block = data_block_get(bnum);
+    } else {
+        // if already allocated, clear memory
+        block = data_block_get(bnum);
+        memset(block, 0, state_block_size());
+    }
+          
+    size_t file_size = fread(block, 1, state_block_size(), source_handle);
     if (file_size == -1)
         return -1;
 
-    ssize_t written = tfs_write(dest_handle, buffer, (size_t)file_size);
-    if (written == -1)
-        return -1;
+    // update inode size
+    inode->i_size = file_size;
 
-    close(source_handle);
-    tfs_close(dest_handle);
-    free(buffer);
+    fclose(source_handle);
     return 0;
 }
