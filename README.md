@@ -1,5 +1,7 @@
 # TecnicoFS
 
+Project done in the scope of the course Operating Systems, IST 2022/2023.
+
 # List of contents
 
 1. [Enunciado](#Enunciado)
