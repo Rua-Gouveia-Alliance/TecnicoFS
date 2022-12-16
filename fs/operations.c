@@ -343,28 +343,30 @@ int tfs_unlink(char const *target) {
 }
 
 int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
-    int source_handle = open(source_path, O_RDONLY);
-    if (source_handle == -1)
+    FILE* source_handle = fopen(source_path, "r");
+    if (source_handle == NULL)
         return -1;
 
     int dest_handle = tfs_open(dest_path, TFS_O_TRUNC | TFS_O_CREAT);
-    if (dest_handle == -1)
+    if (dest_handle == -1) {
+        fclose(source_handle);
         return -1;
+    }
 
-    char *buffer = malloc(state_block_size());
-    if (buffer == NULL)
-        return -1;
+    size_t read_result;
+    size_t block_size = state_block_size();
+    char *buffer[block_size];
+    
+    while(!feof(source_handle)) {
+        read_result = fread(buffer, sizeof(char), block_size, source_handle);
+        if (ferror(source_handle) || tfs_write(dest_handle, buffer, read_result*sizeof(char)) != read_result*sizeof(char)) {
+            fclose(source_handle);
+            tfs_close(dest_handle);
+            return -1;
+        }
+    }
 
-    ssize_t file_size = read(source_handle, buffer, state_block_size());
-    if (file_size == -1)
-        return -1;
-
-    ssize_t written = tfs_write(dest_handle, buffer, (size_t)file_size);
-    if (written == -1)
-        return -1;
-
-    close(source_handle);
+    fclose(source_handle);
     tfs_close(dest_handle);
-    free(buffer);
     return 0;
 }
