@@ -64,8 +64,6 @@ static bool valid_pathname(char const *name) {
  * Returns the inumber of the file, -1 if unsuccessful.
  */
 static int tfs_lookup(char const *name, inode_t const *root_inode) {
-    // TODO: assert that root_inode is the root directory
-    // TODO: chek if this makes sense
     if (inode_get(ROOT_DIR_INUM) != root_inode)
         return -1;
 
