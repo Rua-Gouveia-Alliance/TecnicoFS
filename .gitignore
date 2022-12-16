@@ -452,3 +452,10 @@ TSWLatexianTemp*
 
 # old files folder
 _old
+
+######################
+# Project specific files
+######################
+
+# drafts executables
+drafts/a.out
