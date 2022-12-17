@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
+#include <pthread.h>
 
 /**
  * Directory entry
@@ -24,12 +25,10 @@ typedef enum { T_FILE, T_DIRECTORY, T_SYMLINK } inode_type;
  */
 typedef struct {
     inode_type i_node_type;
-
     size_t i_size;
     int i_data_block;
     int i_hardl;
-
-    // in a more complete FS, more fields could exist here
+    pthread_rwlock_t i_rwlock;
 } inode_t;
 
 typedef enum { FREE = 0, TAKEN = 1 } allocation_state_t;

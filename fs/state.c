@@ -1,6 +1,7 @@
 #include "state.h"
 #include "betterassert.h"
 
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -196,6 +197,7 @@ static int inode_alloc(void) {
  *   - (if creating a directory) No free data blocks.
  */
 int inode_create(inode_type i_type) {
+    int err;
     int inumber = inode_alloc();
     if (inumber == -1) {
         return -1; // no free slots in inode table
@@ -206,6 +208,8 @@ int inode_create(inode_type i_type) {
 
     inode->i_node_type = i_type;
     inode->i_hardl = 1;
+    err = pthread_rwlock_init(&inode->i_rwlock, NULL);
+    ALWAYS_ASSERT(err != -1, "inode_create: pthread_rwlock_init critical error");
     switch (i_type) {
     case T_DIRECTORY: {
         // Initializes directory (filling its block with empty entries, labeled
