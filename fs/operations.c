@@ -21,6 +21,8 @@ tfs_params tfs_default_params() {
     return params;
 }
 
+static pthread_mutex_t open_create_mutex;
+
 int tfs_init(tfs_params const *params_ptr) {
     tfs_params params;
     if (params_ptr != NULL) {
