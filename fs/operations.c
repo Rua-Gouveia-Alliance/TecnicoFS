@@ -49,6 +49,7 @@ int tfs_destroy() {
     if (state_destroy() != 0) {
         return -1;
     }
+    pthread_mutex_destroy(&open_create_mutex);
     return 0;
 }
 

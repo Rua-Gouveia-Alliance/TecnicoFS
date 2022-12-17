@@ -143,6 +143,10 @@ int state_init(tfs_params params) {
  * Returns 0 if succesful, -1 otherwise.
  */
 int state_destroy(void) {
+    pthread_mutex_destroy(&inode_mutex);
+    pthread_mutex_destroy(&data_mutex);
+    pthread_mutex_destroy(&of_mutex);
+
     free(inode_table);
     free(freeinode_ts);
     free(fs_data);
