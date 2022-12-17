@@ -60,11 +60,11 @@ static bool valid_pathname(char const *name) {
  *
  * Input:
  *   - name: absolute path name
- *   - root_inode: the root directory inode
+ *   - root_inumber: the root directory inode inumber
  * Returns the inumber of the file, -1 if unsuccessful.
  */
-static int tfs_lookup(char const *name, inode_t const *root_inode) {
-    if (inode_get(ROOT_DIR_INUM) != root_inode)
+static int tfs_lookup(char const *name, int root_inumber) {
+    if (ROOT_DIR_INUM != root_inumber)
         return -1;
 
     if (!valid_pathname(name)) {
@@ -74,7 +74,7 @@ static int tfs_lookup(char const *name, inode_t const *root_inode) {
     // skip the initial '/' character
     name++;
 
-    return find_in_dir(root_inode, name);
+    return find_in_dir(root_inumber, name);
 }
 
 int tfs_open(char const *name, tfs_file_mode_t mode) {
@@ -83,10 +83,7 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
         return -1;
     }
 
-    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
-    ALWAYS_ASSERT(root_dir_inode != NULL,
-                  "tfs_open: root dir inode must exist");
-    int inum = tfs_lookup(name, root_dir_inode);
+    int inum = tfs_lookup(name, ROOT_DIR_INUM);
     size_t offset;
 
     if (inum >= 0) {
@@ -131,7 +128,7 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
         }
 
         // Add entry in the root directory
-        if (add_dir_entry(root_dir_inode, name + 1, inum) == -1) {
+        if (add_dir_entry(ROOT_DIR_INUM, name + 1, inum) == -1) {
             inode_delete(inum);
             return -1; // no space in directory
         }
@@ -159,12 +156,8 @@ int tfs_sym_link(char const *target, char const *link_name) {
         return -1;
     }
 
-    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
-    ALWAYS_ASSERT(root_dir_inode != NULL,
-                  "tfs_sym_link: root dir inode must exist");
-    
     // check if target exists and link does not
-    if(tfs_lookup(target, root_dir_inode) == -1 || tfs_lookup(link_name, root_dir_inode) != -1)
+    if(tfs_lookup(target, ROOT_DIR_INUM) == -1 || tfs_lookup(link_name, ROOT_DIR_INUM) != -1)
         return -1;
 
     // create symlink inode
@@ -174,7 +167,7 @@ int tfs_sym_link(char const *target, char const *link_name) {
     }
 
     // add symlink in the root directory
-    if (add_dir_entry(root_dir_inode, link_name + 1, link_inum) == -1) {
+    if (add_dir_entry(ROOT_DIR_INUM, link_name + 1, link_inum) == -1) {
         inode_delete(link_inum);
         return -1; // no space in directory
     }
@@ -200,10 +193,7 @@ int tfs_link(char const *target, char const *link_name) {
         return -1;
     
     // get inum
-    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
-    ALWAYS_ASSERT(root_dir_inode != NULL,
-                  "tfs_link: root dir inode must exist");
-    int inum = tfs_lookup(target, root_dir_inode);
+    int inum = tfs_lookup(target, ROOT_DIR_INUM);
     if (inum == -1)
         return -1;
 
@@ -215,7 +205,7 @@ int tfs_link(char const *target, char const *link_name) {
         return -1;
 
     // add dir entry
-    err = add_dir_entry(root_dir_inode, link_name + 1, inum);
+    err = add_dir_entry(ROOT_DIR_INUM, link_name + 1, inum);
     if (err == -1)
         return -1;
 
@@ -314,16 +304,12 @@ int tfs_unlink(char const *target) {
         return -1;
     }
 
-    // get inum
-    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
-    ALWAYS_ASSERT(root_dir_inode != NULL,
-                  "tfs_unlink: root dir inode must exist");
-    int inum = tfs_lookup(target, root_dir_inode);
+    int inum = tfs_lookup(target, ROOT_DIR_INUM);
     if (inum == -1)
         return -1;
 
     // clear dir entry
-    int err = clear_dir_entry(root_dir_inode, target+1); 
+    int err = clear_dir_entry(ROOT_DIR_INUM, target+1); 
     if (err == -1)
         return -1;
 
@@ -353,7 +339,7 @@ int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
 
     size_t read_result;
     size_t block_size = state_block_size();
-    char *buffer[block_size];
+    char buffer[block_size];
     
     while(!feof(source_handle)) {
         read_result = fread(buffer, sizeof(char), block_size, source_handle);

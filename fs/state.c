@@ -120,16 +120,16 @@ int state_init(tfs_params params) {
     for (size_t i = 0; i < INODE_TABLE_SIZE; i++) {
         freeinode_ts[i] = FREE;
         if (pthread_rwlock_init(inode_rwlocks + i, NULL) != 0)
-            return -1;
+            exit(-1);
     }
 
     if (pthread_rwlock_init(&inode_manipulation_rwlock, NULL) != 0)
-        return -1;
+        exit(-1);
 
     for (size_t i = 0; i < DATA_BLOCKS; i++) {
         free_blocks[i] = FREE;
         if (pthread_rwlock_init(data_rwlocks + i, NULL) != 0)
-            return -1;
+            exit(-1);
     }
 
     for (size_t i = 0; i < MAX_OPEN_FILES; i++) {
@@ -154,17 +154,17 @@ int state_destroy(void) {
 
     for (size_t i = 0; i < INODE_TABLE_SIZE; i++)
         if (pthread_rwlock_destroy(inode_rwlocks + i) != 0)
-            return -1;
+            exit(-1);
 
     for (size_t i = 0; i < DATA_BLOCKS; i++)
         if (pthread_rwlock_destroy(data_rwlocks + i) != 0)
-            return -1;
+            exit(-1);
 
     free(inode_rwlocks);
     free(data_rwlocks);
 
     if (pthread_rwlock_destroy(&inode_manipulation_rwlock) != 0)
-        return -1;
+        exit(-1);
 
     inode_table = NULL;
     freeinode_ts = NULL;
@@ -194,22 +194,22 @@ static int inode_alloc(void) {
         }
 
         if (pthread_rwlock_wrlock(inode_rwlocks + inumber) != 0)
-            return -1;
+            exit(-1);
         // Locking for writing. If we only lock for reading before
         // this if statement, theres the possibility a writer is queued
-        // for this inode, which would change its status from FREE after we checked for it.
+        // for this inode, which could change its status from FREE after we checked for it.
         if (freeinode_ts[inumber] == FREE) { // Finds first free entry in inode table
             //  Found a free entry, so takes it for the new inode
             freeinode_ts[inumber] = TAKEN;
 
             if (pthread_rwlock_unlock(inode_rwlocks + inumber) != 0)
-                return -1;
+                exit(-1);
 
             return (int)inumber;
         }
 
         if (pthread_rwlock_unlock(inode_rwlocks + inumber) != 0)
-            return -1;
+            exit(-1);
     }
 
     // No free inodes
@@ -236,22 +236,24 @@ static int inode_alloc(void) {
 int inode_create(inode_type i_type) {
     // Locking for reading. We want to allow having any number
     // of 'creators', however, we want to avoid having any 'destroyers'
-    // running at the same time as the 'creators'.
+    // running at the same time as the 'creators', mainly due to the inode_alloc.
+    // We want to avoid the possibility of generating an inode and right after the alloc
+    // deleting it.
     if (pthread_rwlock_rdlock(&inode_manipulation_rwlock) != 0)
-        return -1;
+        exit(-1);
 
     int inumber = inode_alloc();
     if (inumber == -1) {
         
         if (pthread_rwlock_unlock(&inode_manipulation_rwlock) != 0)
-            return -1;
+            exit(-1);
         
         return -1; // No free slots in inode table
     }
     
     // We found the node we want to initialize. Locking for writing.
     if (pthread_rwlock_wrlock(inode_rwlocks + inumber) != 0)
-        return -1;
+        exit(-1);
 
     inode_t *inode = &inode_table[inumber];
     insert_delay(); // Simulate storage access delay (to inode)
@@ -272,10 +274,10 @@ int inode_create(inode_type i_type) {
             inode_delete(inumber);
 
             if (pthread_rwlock_unlock(inode_rwlocks + inumber) != 0)
-                return -1;
+                exit(-1);
 
             if (pthread_rwlock_unlock(&inode_manipulation_rwlock) != 0)
-                return -1;
+                exit(-1);
 
             return -1;
         }
@@ -300,19 +302,19 @@ int inode_create(inode_type i_type) {
     default:
 
         if (pthread_rwlock_unlock(inode_rwlocks + inumber) != 0)
-            return -1;
+            exit(-1);
 
         if (pthread_rwlock_unlock(&inode_manipulation_rwlock) != 0)
-            return -1;
+            exit(-1);
 
         PANIC("inode_create: unknown file type");
     }
 
     if (pthread_rwlock_unlock(&inode_manipulation_rwlock) != 0)
-        return -1;
+        exit(-1);
 
     if (pthread_rwlock_unlock(inode_rwlocks + inumber) != 0)
-        return -1;
+        exit(-1);
 
     return inumber;
 }
@@ -333,12 +335,12 @@ void inode_delete(int inumber) {
     // Locking for writing. We don't want to allow more than one 'destroyer'
     // at any given time, since they will affect each other and 'creators'.
     if (pthread_rwlock_wrlock(&inode_manipulation_rwlock) != 0)
-        return -1;
+        exit(-1);
 
     // Avoiding having anyone reading this particular inode, since we will
     // delete it.
     if (pthread_rwlock_wrlock(inode_rwlocks + inumber) != 0)
-        return -1;
+        exit(-1);
 
     ALWAYS_ASSERT(freeinode_ts[inumber] == TAKEN,
                   "inode_delete: inode already freed");
@@ -350,10 +352,10 @@ void inode_delete(int inumber) {
     freeinode_ts[inumber] = FREE;
     
     if (pthread_rwlock_unlock(inode_rwlocks + inumber) != 0)
-        return -1;
+        exit(-1);
 
     if (pthread_rwlock_unlock(&inode_manipulation_rwlock) != 0)
-        return -1;
+        exit(-1);
 }
 
 /**
@@ -389,14 +391,22 @@ int clear_dir_entry(int inumber, char const *sub_name) {
 
     // Locking this inode for writing.
     if (pthread_rwlock_wrlock(inode_rwlocks + inumber) != 0)
-        return -1;
+        exit(-1);
 
     inode_t* inode = inode_get(inumber);
     insert_delay();
+    if (inode == NULL) {
+
+        if (pthread_rwlock_wrlock(inode_rwlocks + inumber) != 0)
+            exit(-1);
+
+        return -1; // inumber not found
+    }
+
     if (inode->i_node_type != T_DIRECTORY) {
 
         if (pthread_rwlock_unlock(inode_rwlocks + inumber) != 0)
-            return -1;
+            exit(-1);
 
         return -1; // not a directory
     }
@@ -412,14 +422,14 @@ int clear_dir_entry(int inumber, char const *sub_name) {
             memset(dir_entry[i].d_name, 0, MAX_FILE_NAME);
             
             if (pthread_rwlock_unlock(inode_rwlocks + inumber) != 0)
-                return -1;
+                exit(-1);
 
             return 0;
         }
     }
 
     if (pthread_rwlock_unlock(inode_rwlocks + inumber) != 0)
-        return -1;
+        exit(-1);
             
     return -1; // sub_name not found
 }
@@ -447,15 +457,21 @@ int add_dir_entry(int inumber, char const *sub_name, int sub_inumber) {
 
     // Locking this inode for writing.
     if (pthread_rwlock_wrlock(inode_rwlocks + inumber) != 0)
-        return -1;
+        exit(-1);
     
     inode_t* inode = inode_get(inumber);
-
     insert_delay(); // simulate storage access delay to inode with inumber
+
+    if (inode == NULL) {
+        if (pthread_rwlock_wrlock(inode_rwlocks + inumber) != 0)
+            exit(-1);
+        return -1; // inumber not found
+    }
+
     if (inode->i_node_type != T_DIRECTORY) {
 
         if (pthread_rwlock_unlock(inode_rwlocks + inumber) != 0)
-            return -1;
+            exit(-1);
 
         return -1; // not a directory
     }
@@ -473,14 +489,14 @@ int add_dir_entry(int inumber, char const *sub_name, int sub_inumber) {
             dir_entry[i].d_name[MAX_FILE_NAME - 1] = '\0';
 
             if (pthread_rwlock_unlock(inode_rwlocks + inumber) != 0)
-                return -1;
+                exit(-1);
 
             return 0;
         }
     }
 
     if (pthread_rwlock_unlock(inode_rwlocks + inumber) != 0)
-        return -1;
+        exit(-1);
 
     return -1; // no space for entry
 }
@@ -495,13 +511,14 @@ int add_dir_entry(int inumber, char const *sub_name, int sub_inumber) {
  * Returns inumber linked to the target name, -1 if errors occur.
  *
  * Possible errors:
+ *   - inumber is not a valid inumber.
  *   - inode is not a directory inode.
  *   - Directory does not contain a file named sub_name.
  */
 int find_in_dir(int inumber, char const *sub_name) {
     // Locking this inode for reading.
     if (pthread_rwlock_rdlock(inode_rwlocks + inumber) != 0)
-        return -1;
+        exit(-1);
 
     inode_t* inode = inode_get(inumber);
 
@@ -512,11 +529,15 @@ int find_in_dir(int inumber, char const *sub_name) {
     if (inode->i_node_type != T_DIRECTORY) {
 
         if (pthread_rwlock_unlock(inode_rwlocks + inumber) != 0)
-            return -1;
+            exit(-1);
 
         return -1; // not a directory
     }
 
+    // Locking the block contaiining the entries of the directory for reading.
+    // Avoiding it beeing freed during our search.
+    if (pthread_rwlock_rdlock(data_rwlocks + inode->i_data_block) != 0)
+        exit(-1);
     // Locates the block containing the entries of the directory
     dir_entry_t *dir_entry = (dir_entry_t *)data_block_get(inode->i_data_block);
     ALWAYS_ASSERT(dir_entry != NULL,
@@ -531,13 +552,19 @@ int find_in_dir(int inumber, char const *sub_name) {
             int sub_inumber = dir_entry[i].d_inumber;
 
             if (pthread_rwlock_unlock(inode_rwlocks + inumber) != 0)
-                return -1;
+                exit(-1);
+
+            if (pthread_rwlock_unlock(data_rwlocks + inode->i_data_block) != 0)
+                exit(-1);
 
             return sub_inumber;
         }
 
     if (pthread_rwlock_unlock(inode_rwlocks + inumber) != 0)
-        return -1;
+        exit(-1);
+
+    if (pthread_rwlock_unlock(data_rwlocks + inode->i_data_block) != 0)
+        exit(-1);
         
     return -1; // entry not found
 }
@@ -556,11 +583,23 @@ int data_block_alloc(void) {
             insert_delay(); // simulate storage access delay to free_blocks
         }
 
+        // Locking for writing. If we only lock for reading before
+        // this if statement, theres the possibility a writer is queued
+        // for this block, which could change its status from FREE after we checked for it.
+        if (pthread_rwlock_wrlock(data_rwlocks + i) != 0)
+            exit(-1);
+
         if (free_blocks[i] == FREE) {
             free_blocks[i] = TAKEN;
 
+            if (pthread_rwlock_unlock(data_rwlocks + i) != 0)
+                exit(-1);
+
             return (int)i;
         }
+
+        if (pthread_rwlock_unlock(data_rwlocks + i) != 0)
+            exit(-1);
     }
     return -1;
 }
@@ -576,8 +615,15 @@ void data_block_free(int block_number) {
                   "data_block_free: invalid block number");
 
     insert_delay(); // simulate storage access delay to free_blocks
+    
+    // Locking this block for writing
+    if (pthread_rwlock_wrlock(data_rwlocks + block_number) != 0)
+        exit(-1);
 
     free_blocks[block_number] = FREE;
+
+    if (pthread_rwlock_unlock(data_rwlocks + block_number) != 0)
+        exit(-1);
 }
 
 /**

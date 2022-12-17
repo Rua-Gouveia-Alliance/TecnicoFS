@@ -53,7 +53,7 @@ inode_t *inode_get(int inumber);
 
 int clear_dir_entry(int inumber, char const *sub_name);
 int add_dir_entry(int inumber, char const *sub_name, int sub_inumber);
-int find_in_dir(inode_t const *inode, char const *sub_name);
+int find_in_dir(int inumber, char const *sub_name);
 
 int data_block_alloc(void);
 void data_block_free(int block_number);
