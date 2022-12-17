@@ -206,7 +206,6 @@ static int inode_alloc(void) {
  *   - (if creating a directory) No free data blocks.
  */
 int inode_create(inode_type i_type) {
-    /* Prevent deleting inode while creating it */
     pthread_mutex_lock(&inode_mutex);
 
     int err;

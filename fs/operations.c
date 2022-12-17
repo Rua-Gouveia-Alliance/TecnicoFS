@@ -2,6 +2,7 @@
 #include "config.h"
 #include "state.h"
 #include <fcntl.h>
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -63,7 +64,7 @@ static bool valid_pathname(char const *name) {
  *   - root_inode: the root directory inode
  * Returns the inumber of the file, -1 if unsuccessful.
  */
-static int tfs_lookup(char const *name, inode_t const *root_inode) {
+static int tfs_lookup(char const *name, inode_t *root_inode) {
     if (inode_get(ROOT_DIR_INUM) != root_inode)
         return -1;
 
@@ -111,10 +112,12 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
 
         // Truncate (if requested)
         if (mode & TFS_O_TRUNC) {
+            pthread_rwlock_wrlock(&inode->i_rwlock);
             if (inode->i_size > 0) {
                 data_block_free(inode->i_data_block);
                 inode->i_size = 0;
             }
+            pthread_rwlock_unlock(&inode->i_rwlock);
         }
         // Determine initial offset
         if (mode & TFS_O_APPEND) {
@@ -180,9 +183,11 @@ int tfs_sym_link(char const *target, char const *link_name) {
     }
 
     inode_t *link_inode = inode_get(link_inum);
+    pthread_rwlock_wrlock(&link_inode->i_rwlock);
     // allocate new block
     int bnum = data_block_alloc();
     if (bnum == -1) {
+        pthread_rwlock_unlock(&link_inode->i_rwlock);
         return -1; // no space
     }
     link_inode->i_data_block = bnum;
@@ -191,6 +196,7 @@ int tfs_sym_link(char const *target, char const *link_name) {
     char *block = data_block_get(bnum);
     strncpy(block, target, MAX_FILE_NAME);
 
+    pthread_rwlock_unlock(&link_inode->i_rwlock);
     return 0;
 }
 
@@ -211,17 +217,23 @@ int tfs_link(char const *target, char const *link_name) {
     inode_t *inode = inode_get(inum);
     ALWAYS_ASSERT(inode != NULL,
                   "tfs_link: directory files must have an inode");
-    if (inode->i_node_type == T_SYMLINK)
+    pthread_rwlock_wrlock(&inode->i_rwlock);
+    if (inode->i_node_type == T_SYMLINK) {
+        pthread_rwlock_unlock(&inode->i_rwlock);
         return -1;
+    }
 
     // add dir entry
     err = add_dir_entry(root_dir_inode, link_name + 1, inum);
-    if (err == -1)
+    if (err == -1) {
+        pthread_rwlock_unlock(&inode->i_rwlock);
         return -1;
+    }
 
     // update hard link count
     inode->i_hardl++;
 
+    pthread_rwlock_unlock(&inode->i_rwlock);
     return 0;
 }
 
@@ -245,6 +257,7 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
     //  From the open file table entry, we get the inode
     inode_t *inode = inode_get(file->of_inumber);
     ALWAYS_ASSERT(inode != NULL, "tfs_write: inode of open file deleted");
+    pthread_rwlock_wrlock(&inode->i_rwlock);
 
     // Determine how many bytes to write
     size_t block_size = state_block_size();
@@ -257,6 +270,7 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
             // If empty file, allocate new block
             int bnum = data_block_alloc();
             if (bnum == -1) {
+                pthread_rwlock_unlock(&inode->i_rwlock);
                 return -1; // no space
             }
 
@@ -276,6 +290,7 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
         }
     }
 
+    pthread_rwlock_unlock(&inode->i_rwlock);
     return (ssize_t)to_write;
 }
 
@@ -286,8 +301,9 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
     }
 
     // From the open file table entry, we get the inode
-    inode_t const *inode = inode_get(file->of_inumber);
+    inode_t *inode = inode_get(file->of_inumber);
     ALWAYS_ASSERT(inode != NULL, "tfs_read: inode of open file deleted");
+    pthread_rwlock_rdlock(&inode->i_rwlock);
 
     // Determine how many bytes to read
     size_t to_read = inode->i_size - file->of_offset;
@@ -305,6 +321,7 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
         file->of_offset += to_read;
     }
 
+    pthread_rwlock_unlock(&inode->i_rwlock);
     return (ssize_t)to_read;
 }
 
@@ -333,12 +350,14 @@ int tfs_unlink(char const *target) {
     inode_t *inode = inode_get(inum);
     ALWAYS_ASSERT(inode != NULL,
                   "tfs_unlink: directory files must have an inode");
+    pthread_rwlock_wrlock(&inode->i_rwlock);
 
     // decrease hard link count and if 0 delete inode
     inode->i_hardl--;
     if(inode->i_hardl == 0)
         inode_delete(inum);
 
+    pthread_rwlock_unlock(&inode->i_rwlock);
     return 0;
 }
 
