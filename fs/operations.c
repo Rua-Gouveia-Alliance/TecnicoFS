@@ -309,6 +309,8 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
 }
 
 int tfs_unlink(char const *target) {
+    int err;
+
     // Checks if the path name is valid
     if (!valid_pathname(target)) {
         return -1;
@@ -323,7 +325,7 @@ int tfs_unlink(char const *target) {
         return -1;
 
     // clear dir entry
-    int err = clear_dir_entry(root_dir_inode, target+1); 
+    err = clear_dir_entry(root_dir_inode, target+1); 
     if (err == -1)
         return -1;
 
