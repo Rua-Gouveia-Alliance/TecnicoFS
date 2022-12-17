@@ -31,6 +31,7 @@ int tfs_init(tfs_params const *params_ptr) {
         params = tfs_default_params();
     }
 
+    pthread_mutex_init(&open_create_mutex, 0);
     if (state_init(params) != 0) {
         return -1;
     }
@@ -89,10 +90,13 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
     inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
     ALWAYS_ASSERT(root_dir_inode != NULL,
                   "tfs_open: root dir inode must exist");
+    pthread_mutex_lock(&open_create_mutex);
     int inum = tfs_lookup(name, root_dir_inode);
     size_t offset;
 
     if (inum >= 0) {
+        pthread_mutex_unlock(&open_create_mutex);
+
         // The file already exists
         inode_t *inode = inode_get(inum);
         ALWAYS_ASSERT(inode != NULL,
@@ -132,20 +136,24 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
         // Create inode
         inum = inode_create(T_FILE);
         if (inum == -1) {
+            pthread_mutex_unlock(&open_create_mutex);
             return -1; // no space in inode table
         }
 
         // Add entry in the root directory
         if (add_dir_entry(root_dir_inode, name + 1, inum) == -1) {
             inode_delete(inum);
+            pthread_mutex_unlock(&open_create_mutex);
             return -1; // no space in directory
         }
 
         offset = 0;
     } else {
+        pthread_mutex_unlock(&open_create_mutex);
         return -1;
     }
 
+    pthread_mutex_unlock(&open_create_mutex);
     // Finally, add entry to the open file table and return the corresponding
     // handle
     return add_to_open_file_table(inum, offset);
