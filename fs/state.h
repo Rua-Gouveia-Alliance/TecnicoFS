@@ -51,8 +51,8 @@ int inode_create(inode_type n_type);
 void inode_delete(int inumber);
 inode_t *inode_get(int inumber);
 
-int clear_dir_entry(inode_t *inode, char const *sub_name);
-int add_dir_entry(inode_t *inode, char const *sub_name, int sub_inumber);
+int clear_dir_entry(int inumber, char const *sub_name);
+int add_dir_entry(int inumber, char const *sub_name, int sub_inumber);
 int find_in_dir(inode_t const *inode, char const *sub_name);
 
 int data_block_alloc(void);
