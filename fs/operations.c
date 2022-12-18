@@ -185,7 +185,6 @@ int tfs_sym_link(char const *target, char const *link_name) {
     if (link_inum == -1) {
         return -1; // no space in inode table
     }
-
     // add symlink in the root directory
     if (add_dir_entry(ROOT_DIR_INUM, link_name + 1, link_inum) == -1) {
         inode_delete(link_inum);
@@ -357,8 +356,9 @@ int tfs_unlink(char const *target) {
 
     // decrease hard link count and if 0 delete inode
     inode->i_hardl--;
-    if(inode->i_hardl == 0)
+    if(inode->i_hardl == 0) {
         inode_delete(inum);
+    }
 
     return 0;
 }
