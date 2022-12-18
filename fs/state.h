@@ -8,6 +8,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
+#include <pthread.h>
+
+// Locks
+extern pthread_rwlock_t *inode_rwlocks;
+extern pthread_rwlock_t *data_rwlocks;
+extern pthread_rwlock_t* open_file_rwlocks;
 
 /**
  * Directory entry

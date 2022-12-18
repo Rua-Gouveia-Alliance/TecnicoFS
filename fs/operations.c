@@ -11,7 +11,6 @@
 
 #include "betterassert.h"
 
-static pthread_rwlock_t* file_rwlocks;
 static pthread_mutex_t file_exists_mutex;
 
 static inline bool valid_file_handle(int file_handle) {
@@ -46,30 +45,13 @@ int tfs_init(tfs_params const *params_ptr) {
         return -1;
     }
     
-    size_t file_count = max_open_files();
-    file_rwlocks = malloc(file_count*sizeof(pthread_rwlock_t));
-    
-    for (size_t i = 0; i < file_count; i++)
-        if (pthread_rwlock_init(file_rwlocks + i, NULL) != 0)
-            exit(-1);
-    
-    if (pthread_mutex_init(&file_exists_mutex, NULL) != 0)
-        exit(-1);
+    MUTEX_INIT(&file_exists_mutex);
 
     return 0;
 }
 
 int tfs_destroy() {
-    size_t file_count = max_open_files();
-    
-    for (size_t i = 0; i < file_count; i++)
-        if (pthread_rwlock_destroy(file_rwlocks + i) != 0)
-            exit(-1);
-    
-    if (pthread_mutex_destroy(&file_exists_mutex) != 0)
-        exit(-1);
-    
-    free(file_rwlocks);
+    MUTEX_DESTROY(&file_exists_mutex);
 
     if (state_destroy() != 0) {
         return -1;
@@ -114,15 +96,13 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
 
     // If we have multiple tfs_open running we might be creating a file
     // at the same time we are checking for it's existence.
-    if (pthread_mutex_lock(&file_exists_mutex) != 0)
-        exit(-1);
+    MUTEX_LOCK(&file_exists_mutex);
 
     int inum = tfs_lookup(name, ROOT_DIR_INUM);
     size_t offset;
 
     if (inum >= 0) { // The file already exists
-        if (pthread_mutex_unlock(&file_exists_mutex) != 0)
-            exit(-1);
+        MUTEX_UNLOCK(&file_exists_mutex);
 
         inode_t *inode = inode_get(inum);
         ALWAYS_ASSERT(inode != NULL,
@@ -160,27 +140,21 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
         // Create inode
         inum = inode_create(T_FILE);
         if (inum == -1) {
-            if (pthread_mutex_unlock(&file_exists_mutex) != 0)
-                exit(-1);
+            MUTEX_UNLOCK(&file_exists_mutex);
             return -1; // no space in inode table
         }
 
         // Add entry in the root directory
         if (add_dir_entry(ROOT_DIR_INUM, name + 1, inum) == -1) {
             inode_delete(inum);
-            if (pthread_mutex_unlock(&file_exists_mutex) != 0)
-                exit(-1);
+            MUTEX_UNLOCK(&file_exists_mutex);
             return -1; // no space in directory
         }
 
         offset = 0;
-
-        if (pthread_mutex_unlock(&file_exists_mutex) != 0)
-            exit(-1);
-
+        MUTEX_UNLOCK(&file_exists_mutex);
     } else {
-        if (pthread_mutex_unlock(&file_exists_mutex) != 0)
-            exit(-1);
+        MUTEX_UNLOCK(&file_exists_mutex);
         return -1;
     }
 
@@ -262,6 +236,9 @@ int tfs_link(char const *target, char const *link_name) {
 }
 
 int tfs_close(int fhandle) {
+    if (!valid_file_handle(fhandle))
+        return -1;
+
     open_file_entry_t *file = get_open_file_entry(fhandle);
     if (file == NULL) {
         return -1; // invalid fd
@@ -273,18 +250,15 @@ int tfs_close(int fhandle) {
 }
 
 ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
-    if (!valid_file_handle(fhandle))
-        return -1;
-    
-    if (pthread_rwlock_wrlock(file_rwlocks + fhandle) != 0)
-        exit(-1);
-
     open_file_entry_t *file = get_open_file_entry(fhandle);
     if (file == NULL) {
-        if (pthread_rwlock_unlock(file_rwlocks + fhandle) != 0)
-            exit(-1);
         return -1;
     }
+
+    // Locking this file for writing
+    RWLOCK_WRLOCK(open_file_rwlocks + fhandle);
+    // Locking the corresponding inode for reading
+    RWLOCK_RDLOCK(inode_rwlocks + file->of_inumber);
     //  From the open file table entry, we get the inode
     inode_t *inode = inode_get(file->of_inumber);
     ALWAYS_ASSERT(inode != NULL, "tfs_write: inode of open file deleted");
@@ -300,19 +274,21 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
             // If empty file, allocate new block
             int bnum = data_block_alloc();
             if (bnum == -1) {
-                if (pthread_rwlock_unlock(file_rwlocks + fhandle) != 0)
-                    exit(-1);
+                RWLOCK_UNLOCK(inode_rwlocks + file->of_inumber);
+                RWLOCK_UNLOCK(open_file_rwlocks + fhandle);
                 return -1; // no space
             }
 
             inode->i_data_block = bnum;
         }
 
+        RWLOCK_WRLOCK(data_rwlocks + inode->i_data_block);
         void *block = data_block_get(inode->i_data_block);
         ALWAYS_ASSERT(block != NULL, "tfs_write: data block deleted mid-write");
 
         // Perform the actual write
         memcpy(block + file->of_offset, buffer, to_write);
+        RWLOCK_UNLOCK(data_rwlocks + inode->i_data_block);
 
         // The offset associated with the file handle is incremented accordingly
         file->of_offset += to_write;
@@ -321,27 +297,23 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
         }
     }
 
-    if (pthread_rwlock_unlock(file_rwlocks + fhandle) != 0)
-        exit(-1);
+    RWLOCK_UNLOCK(inode_rwlocks + file->of_inumber);
+    RWLOCK_UNLOCK(open_file_rwlocks + fhandle);
 
     return (ssize_t)to_write;
 }
 
 ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
-    if (!valid_file_handle(fhandle))
-        return -1;
-    
-    if (pthread_rwlock_rdlock(file_rwlocks + fhandle) != 0)
-        exit(-1);
-
     open_file_entry_t *file = get_open_file_entry(fhandle);
     if (file == NULL) {
-        if (pthread_rwlock_unlock(file_rwlocks + fhandle) != 0)
-            exit(-1);
         return -1;
     }
 
-    // From the open file table entry, we get the inode
+    // Locking this file for reading
+    RWLOCK_RDLOCK(open_file_rwlocks + fhandle);
+    // Locking the corresponding inode for reading
+    RWLOCK_RDLOCK(inode_rwlocks + file->of_inumber);
+
     inode_t const *inode = inode_get(file->of_inumber);
     ALWAYS_ASSERT(inode != NULL, "tfs_read: inode of open file deleted");
 
@@ -354,16 +326,12 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
     if (to_read > 0) {
         void *block = data_block_get(inode->i_data_block);
         ALWAYS_ASSERT(block != NULL, "tfs_read: data block deleted mid-read");
-
         // Perform the actual read
         memcpy(buffer, block + file->of_offset, to_read);
-        // The offset associated with the file handle is incremented accordingly
-        file->of_offset += to_read;
     }
-
-    if (pthread_rwlock_unlock(file_rwlocks + fhandle) != 0)
-        exit(-1);
-
+    file->of_offset += to_read;
+    RWLOCK_UNLOCK(inode_rwlocks + file->of_inumber);
+    RWLOCK_UNLOCK(open_file_rwlocks + fhandle);
     return (ssize_t)to_read;
 }
 
