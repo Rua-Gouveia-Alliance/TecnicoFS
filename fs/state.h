@@ -46,6 +46,7 @@ int state_init(tfs_params);
 int state_destroy(void);
 
 size_t state_block_size(void);
+size_t max_open_files(void);
 
 int inode_create(inode_type n_type);
 void inode_delete(int inumber);

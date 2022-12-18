@@ -7,8 +7,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #include "betterassert.h"
+
+static pthread_rwlock_t* file_rwlocks;
+static pthread_mutex_t file_exists_mutex;
+
+static inline bool valid_file_handle(int file_handle) {
+    return file_handle >= 0 && file_handle < max_open_files();
+}
 
 tfs_params tfs_default_params() {
     tfs_params params = {
@@ -37,11 +45,32 @@ int tfs_init(tfs_params const *params_ptr) {
     if (root != ROOT_DIR_INUM) {
         return -1;
     }
+    
+    size_t file_count = max_open_files();
+    file_rwlocks = malloc(file_count*sizeof(pthread_rwlock_t));
+    
+    for (size_t i = 0; i < file_count; i++)
+        if (pthread_rwlock_init(file_rwlocks + i, NULL) != 0)
+            exit(-1);
+    
+    if (pthread_mutex_init(&file_exists_mutex, NULL) != 0)
+        exit(-1);
 
     return 0;
 }
 
 int tfs_destroy() {
+    size_t file_count = max_open_files();
+    
+    for (size_t i = 0; i < file_count; i++)
+        if (pthread_rwlock_destroy(file_rwlocks + i) != 0)
+            exit(-1);
+    
+    if (pthread_mutex_destroy(&file_exists_mutex) != 0)
+        exit(-1);
+    
+    free(file_rwlocks);
+
     if (state_destroy() != 0) {
         return -1;
     }
@@ -83,11 +112,18 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
         return -1;
     }
 
+    // If we have multiple tfs_open running we might be creating a file
+    // at the same time we are checking for it's existence.
+    if (pthread_mutex_lock(&file_exists_mutex) != 0)
+        exit(-1);
+
     int inum = tfs_lookup(name, ROOT_DIR_INUM);
     size_t offset;
 
-    if (inum >= 0) {
-        // The file already exists
+    if (inum >= 0) { // The file already exists
+        if (pthread_mutex_unlock(&file_exists_mutex) != 0)
+            exit(-1);
+
         inode_t *inode = inode_get(inum);
         ALWAYS_ASSERT(inode != NULL,
                       "tfs_open: directory files must have an inode");
@@ -124,17 +160,27 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
         // Create inode
         inum = inode_create(T_FILE);
         if (inum == -1) {
+            if (pthread_mutex_unlock(&file_exists_mutex) != 0)
+                exit(-1);
             return -1; // no space in inode table
         }
 
         // Add entry in the root directory
         if (add_dir_entry(ROOT_DIR_INUM, name + 1, inum) == -1) {
             inode_delete(inum);
+            if (pthread_mutex_unlock(&file_exists_mutex) != 0)
+                exit(-1);
             return -1; // no space in directory
         }
 
         offset = 0;
+
+        if (pthread_mutex_unlock(&file_exists_mutex) != 0)
+            exit(-1);
+
     } else {
+        if (pthread_mutex_unlock(&file_exists_mutex) != 0)
+            exit(-1);
         return -1;
     }
 
@@ -227,11 +273,18 @@ int tfs_close(int fhandle) {
 }
 
 ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
+    if (!valid_file_handle(fhandle))
+        return -1;
+    
+    if (pthread_rwlock_wrlock(file_rwlocks + fhandle) != 0)
+        exit(-1);
+
     open_file_entry_t *file = get_open_file_entry(fhandle);
     if (file == NULL) {
+        if (pthread_rwlock_unlock(file_rwlocks + fhandle) != 0)
+            exit(-1);
         return -1;
     }
-
     //  From the open file table entry, we get the inode
     inode_t *inode = inode_get(file->of_inumber);
     ALWAYS_ASSERT(inode != NULL, "tfs_write: inode of open file deleted");
@@ -247,6 +300,8 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
             // If empty file, allocate new block
             int bnum = data_block_alloc();
             if (bnum == -1) {
+                if (pthread_rwlock_unlock(file_rwlocks + fhandle) != 0)
+                    exit(-1);
                 return -1; // no space
             }
 
@@ -266,12 +321,23 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
         }
     }
 
+    if (pthread_rwlock_unlock(file_rwlocks + fhandle) != 0)
+        exit(-1);
+
     return (ssize_t)to_write;
 }
 
 ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
+    if (!valid_file_handle(fhandle))
+        return -1;
+    
+    if (pthread_rwlock_rdlock(file_rwlocks + fhandle) != 0)
+        exit(-1);
+
     open_file_entry_t *file = get_open_file_entry(fhandle);
     if (file == NULL) {
+        if (pthread_rwlock_unlock(file_rwlocks + fhandle) != 0)
+            exit(-1);
         return -1;
     }
 
@@ -294,6 +360,9 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
         // The offset associated with the file handle is incremented accordingly
         file->of_offset += to_read;
     }
+
+    if (pthread_rwlock_unlock(file_rwlocks + fhandle) != 0)
+        exit(-1);
 
     return (ssize_t)to_read;
 }

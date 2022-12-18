@@ -54,6 +54,8 @@ static inline bool valid_file_handle(int file_handle) {
 
 size_t state_block_size(void) { return BLOCK_SIZE; }
 
+size_t max_open_files(void) { return MAX_OPEN_FILES; }
+
 /**
  * Do nothing, while preventing the compiler from performing any optimizations.
  *
