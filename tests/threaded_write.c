@@ -14,11 +14,8 @@ char final_msg[BLOCK_SIZE];
 char buffer[BLOCK_SIZE];
 const char* to_write = "A";
 
-void* test() {
-    int handle = tfs_open(dest_path, TFS_O_CREAT | TFS_O_APPEND);
-    assert(handle != -1);
-    assert(tfs_write(handle, to_write, 1) != -1);
-    tfs_close(handle);
+void* test(void *handle) {
+    assert(tfs_write(*((int*) handle), to_write, 1) != -1);
     return NULL;
 }
 
@@ -26,15 +23,18 @@ int main (void) {
     assert(AMOUNT <= BLOCK_SIZE);
 
     assert(tfs_init(NULL) != -1);
+    int handle = tfs_open(dest_path, TFS_O_CREAT | TFS_O_APPEND);
+    assert(handle != -1);
 
     // threads
     pthread_t threads[AMOUNT];
     for (int i = 0; i < AMOUNT; i++) {
-        assert(pthread_create(&threads[i], NULL, test, NULL) == 0);
+        assert(pthread_create(&threads[i], NULL, test, &handle) == 0);
     }
     for (int i = 0; i < AMOUNT; i++) {
         assert(pthread_join(threads[i], NULL) == 0);
     }
+    tfs_close(handle);
 
     // setup buffer
     for (int i = 0; i < BLOCK_SIZE; i++) {
@@ -45,7 +45,7 @@ int main (void) {
     }
 
     // open and read result
-    int handle = tfs_open(dest_path, TFS_O_CREAT);
+    handle = tfs_open(dest_path, TFS_O_CREAT);
     assert(handle != -1);
     assert(tfs_read(handle, buffer, BLOCK_SIZE) != -1);
 
