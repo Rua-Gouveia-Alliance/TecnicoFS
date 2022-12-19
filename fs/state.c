@@ -107,10 +107,6 @@ int state_init(tfs_params params) {
         return -1; // already initialized
     }
 
-    MUTEX_INIT(&inode_mutex);
-    MUTEX_INIT(&data_mutex);
-    MUTEX_INIT(&of_mutex);
-
     inode_table = malloc(INODE_TABLE_SIZE * sizeof(inode_t));
     freeinode_ts = malloc(INODE_TABLE_SIZE * sizeof(allocation_state_t));
     inode_rwlocks = malloc(INODE_TABLE_SIZE * sizeof(pthread_rwlock_t));
@@ -152,10 +148,6 @@ int state_init(tfs_params params) {
  * Returns 0 if succesful, -1 otherwise.
  */
 int state_destroy(void) {
-    MUTEX_DESTROY(&inode_mutex);
-    MUTEX_DESTROY(&data_mutex);
-    MUTEX_DESTROY(&of_mutex);
-
     free(inode_table);
     free(freeinode_ts);
     free(fs_data);
@@ -265,7 +257,6 @@ int inode_create(inode_type i_type) {
 
     inode->i_node_type = i_type;
     inode->i_hardl = 1;
-    RWLOCK_INIT(&inode->i_rwlock);
     switch (i_type) {
     case T_DIRECTORY: {
         // Initializes directory (filling its block with empty entries, labeled
@@ -276,13 +267,10 @@ int inode_create(inode_type i_type) {
             inode->i_size = 0;
             inode->i_data_block = -1;
 
-            // run regular deletion process
-            MUTEX_UNLOCK(&inode_mutex);
-            inode_delete(inumber);
-
             RWLOCK_UNLOCK(inode_rwlocks + inumber);
             RWLOCK_UNLOCK(&inode_manipulation_rwlock);
-
+            // run regular deletion process
+            inode_delete(inumber);
             return -1;
         }
 
@@ -500,7 +488,6 @@ int find_in_dir(int inumber, char const *sub_name) {
     ALWAYS_ASSERT(inode != NULL, "find_in_dir: inode must be non-NULL");
     ALWAYS_ASSERT(sub_name != NULL, "find_in_dir: sub_name must be non-NULL");
 
-    RWLOCK_RDLOCK(&inode->i_rwlock);
     insert_delay(); // simulate storage access delay to inode with inumber
     if (inode->i_node_type != T_DIRECTORY) {
         RWLOCK_UNLOCK(inode_rwlocks + inumber);
@@ -542,8 +529,6 @@ int find_in_dir(int inumber, char const *sub_name) {
  *   - No free data blocks.
  */
 int data_block_alloc(void) {
-    MUTEX_LOCK(&data_mutex);
-
     for (size_t i = 0; i < DATA_BLOCKS; i++) {
         if (i * sizeof(allocation_state_t) % BLOCK_SIZE == 0) {
             insert_delay(); // simulate storage access delay to free_blocks
@@ -562,7 +547,6 @@ int data_block_alloc(void) {
 
         RWLOCK_UNLOCK(data_rwlocks + i);
     }
-    MUTEX_UNLOCK(&data_mutex);
     return -1;
 }
 
@@ -576,7 +560,6 @@ void data_block_free(int block_number) {
     ALWAYS_ASSERT(valid_block_number(block_number),
                   "data_block_free: invalid block number");
 
-    MUTEX_LOCK(&data_mutex);
     insert_delay(); // simulate storage access delay to free_blocks
     
     // Locking this block for writing
