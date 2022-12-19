@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <pthread.h>
 
 #include "betterassert.h"
 #include "betterlocks.h"
@@ -34,7 +33,7 @@ pthread_rwlock_t *data_rwlocks;
  */
 static open_file_entry_t *open_file_table;
 static allocation_state_t *free_open_file_entries;
-pthread_rwlock_t* open_file_rwlocks;
+pthread_rwlock_t *open_file_rwlocks;
 
 // Convenience macros
 #define INODE_TABLE_SIZE (fs_params.max_inode_count)
@@ -116,11 +115,13 @@ int state_init(tfs_params params) {
     free_blocks = malloc(DATA_BLOCKS * sizeof(allocation_state_t));
     data_rwlocks = malloc(DATA_BLOCKS * sizeof(pthread_rwlock_t));
     open_file_table = malloc(MAX_OPEN_FILES * sizeof(open_file_entry_t));
-    free_open_file_entries = malloc(MAX_OPEN_FILES * sizeof(allocation_state_t));
+    free_open_file_entries =
+        malloc(MAX_OPEN_FILES * sizeof(allocation_state_t));
     open_file_rwlocks = malloc(MAX_OPEN_FILES * sizeof(pthread_rwlock_t));
 
-    if (!inode_table || !freeinode_ts || !inode_rwlocks ||  !fs_data || !free_blocks ||
-        !data_rwlocks || !open_file_table || !free_open_file_entries || !open_file_rwlocks) {
+    if (!inode_table || !freeinode_ts || !inode_rwlocks || !fs_data ||
+        !free_blocks || !data_rwlocks || !open_file_table ||
+        !free_open_file_entries || !open_file_rwlocks) {
         return -1; // allocation failed
     }
 
@@ -202,9 +203,11 @@ static int inode_alloc(void) {
 
         // Locking for writing. If we only lock for reading before
         // this if statement, theres the possibility a writer is queued
-        // for this inode, which could change its status from FREE after we checked for it.
+        // for this inode, which could change its status from FREE after we
+        // checked for it.
         RWLOCK_WRLOCK(inode_rwlocks + inumber);
-        if (freeinode_ts[inumber] == FREE) { // Finds first free entry in inode table
+        if (freeinode_ts[inumber] ==
+            FREE) { // Finds first free entry in inode table
             //  Found a free entry, so takes it for the new inode
             freeinode_ts[inumber] = TAKEN;
 
@@ -240,9 +243,9 @@ static int inode_alloc(void) {
 int inode_create(inode_type i_type) {
     // Locking for reading. We want to allow having any number
     // of 'creators', however, we want to avoid having any 'destroyers'
-    // running at the same time as the 'creators', mainly due to the inode_alloc.
-    // We want to avoid the possibility of generating an inode and right after the alloc
-    // deleting it.
+    // running at the same time as the 'creators', mainly due to the
+    // inode_alloc. We want to avoid the possibility of generating an inode and
+    // right after the alloc deleting it.
     RWLOCK_RDLOCK(&inode_manipulation_rwlock);
 
     int inumber = inode_alloc();
@@ -250,7 +253,7 @@ int inode_create(inode_type i_type) {
         RWLOCK_UNLOCK(&inode_manipulation_rwlock);
         return -1; // No free slots in inode table
     }
-    
+
     // We found the node we want to initialize. Locking for writing.
     RWLOCK_WRLOCK(inode_rwlocks + inumber);
 
@@ -323,7 +326,7 @@ void inode_delete(int inumber) {
     // Avoiding having anyone reading this particular inode, since we will
     // delete it.
     RWLOCK_WRLOCK(inode_rwlocks + inumber);
-    
+
     ALWAYS_ASSERT(freeinode_ts[inumber] == TAKEN,
                   "inode_delete: inode already freed");
 
@@ -332,7 +335,7 @@ void inode_delete(int inumber) {
     }
 
     freeinode_ts[inumber] = FREE;
-    
+
     RWLOCK_UNLOCK(inode_rwlocks + inumber);
     RWLOCK_UNLOCK(&inode_manipulation_rwlock);
 }
@@ -371,7 +374,7 @@ int clear_dir_entry(int inumber, char const *sub_name) {
     // Locking this inode for writing.
     RWLOCK_WRLOCK(inode_rwlocks + inumber);
 
-    inode_t* inode = inode_get(inumber);
+    inode_t *inode = inode_get(inumber);
     insert_delay();
     if (inode == NULL) {
         RWLOCK_UNLOCK(inode_rwlocks + inumber);
@@ -392,7 +395,7 @@ int clear_dir_entry(int inumber, char const *sub_name) {
         if (!strcmp(dir_entry[i].d_name, sub_name)) {
             dir_entry[i].d_inumber = -1;
             memset(dir_entry[i].d_name, 0, MAX_FILE_NAME);
-            
+
             RWLOCK_UNLOCK(inode_rwlocks + inumber);
             return 0;
         }
@@ -421,11 +424,11 @@ int add_dir_entry(int inumber, char const *sub_name, int sub_inumber) {
     if (strlen(sub_name) == 0 || strlen(sub_name) > MAX_FILE_NAME - 1) {
         return -1; // invalid sub_name
     }
-    
+
     // Locking this inode for writing.
     RWLOCK_WRLOCK(inode_rwlocks + inumber);
-    
-    inode_t* inode = inode_get(inumber);
+
+    inode_t *inode = inode_get(inumber);
     insert_delay(); // simulate storage access delay to inode with inumber
 
     if (inode == NULL) {
@@ -483,7 +486,7 @@ int find_in_dir(int inumber, char const *sub_name) {
     // Locking this inode for reading.
     RWLOCK_RDLOCK(inode_rwlocks + inumber);
 
-    inode_t* inode = inode_get(inumber);
+    inode_t *inode = inode_get(inumber);
 
     ALWAYS_ASSERT(inode != NULL, "find_in_dir: inode must be non-NULL");
     ALWAYS_ASSERT(sub_name != NULL, "find_in_dir: sub_name must be non-NULL");
@@ -503,7 +506,8 @@ int find_in_dir(int inumber, char const *sub_name) {
     ALWAYS_ASSERT(dir_entry != NULL,
                   "find_in_dir: directory inode must have a data block");
 
-    // Iterates over the directory entries looking for one that has the target name
+    // Iterates over the directory entries looking for one that has the target
+    // name
     for (int i = 0; i < MAX_DIR_ENTRIES; i++)
         if ((dir_entry[i].d_inumber != -1) &&
             (strncmp(dir_entry[i].d_name, sub_name, MAX_FILE_NAME) == 0)) {
@@ -536,7 +540,8 @@ int data_block_alloc(void) {
 
         // Locking for writing. If we only lock for reading before
         // this if statement, theres the possibility a writer is queued
-        // for this block, which could change its status from FREE after we checked for it.
+        // for this block, which could change its status from FREE after we
+        // checked for it.
         RWLOCK_WRLOCK(data_rwlocks + i);
 
         if (free_blocks[i] == FREE) {
@@ -561,7 +566,7 @@ void data_block_free(int block_number) {
                   "data_block_free: invalid block number");
 
     insert_delay(); // simulate storage access delay to free_blocks
-    
+
     // Locking this block for writing
     RWLOCK_WRLOCK(data_rwlocks + block_number);
 
@@ -627,7 +632,7 @@ void remove_from_open_file_table(int fhandle) {
                   "remove_from_open_file_table: file handle must be valid");
 
     RWLOCK_WRLOCK(open_file_rwlocks + fhandle);
-    
+
     ALWAYS_ASSERT(free_open_file_entries[fhandle] == TAKEN,
                   "remove_from_open_file_table: file handle must be taken");
 

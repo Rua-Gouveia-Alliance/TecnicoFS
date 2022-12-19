@@ -1,25 +1,25 @@
 #include "operations.h"
 
+#include <assert.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
-#include <pthread.h>
 
 #define BLOCK_SIZE 1024
 #define AMOUNT 100
 
-const char* dest_path = "/f1";
+const char *dest_path = "/f1";
 char final_msg[BLOCK_SIZE];
 char buffer[BLOCK_SIZE];
-const char* to_write = "A";
+const char *to_write = "A";
 
-void* test(void *handle) {
-    assert(tfs_write(*((int*) handle), to_write, 1) != -1);
+void *test(void *handle) {
+    assert(tfs_write(*((int *)handle), to_write, 1) != -1);
     return NULL;
 }
 
-int main (void) {
+int main(void) {
     assert(AMOUNT <= BLOCK_SIZE);
 
     assert(tfs_init(NULL) != -1);
@@ -50,7 +50,7 @@ int main (void) {
     assert(tfs_read(handle, buffer, BLOCK_SIZE) != -1);
 
     // debug
-    //printf("%s\n%s\n", final_msg, buffer);
+    // printf("%s\n%s\n", final_msg, buffer);
 
     // compare
     assert(strncmp(buffer, final_msg, BLOCK_SIZE) == 0);

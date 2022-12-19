@@ -8,7 +8,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <pthread.h>
 
 #include "betterassert.h"
 #include "betterlocks.h"
@@ -105,18 +104,18 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
 
     if (inum >= 0) { // The file already exists
         MUTEX_UNLOCK(&file_exists_mutex);
-        
+
         inode_t *inode = inode_get(inum);
         ALWAYS_ASSERT(inode != NULL,
                       "tfs_open: directory files must have an inode");
 
         if (inode->i_node_type == T_SYMLINK) {
-            char *buffer = malloc(MAX_FILE_NAME+1);
+            char *buffer = malloc(MAX_FILE_NAME + 1);
             char *block = data_block_get(inode->i_data_block);
             strncpy(buffer, block, MAX_FILE_NAME);
 
             int new_handle = tfs_open(buffer, mode);
-            if(new_handle == -1) {
+            if (new_handle == -1) {
                 free(buffer);
                 return -1;
             }
@@ -173,16 +172,18 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
 }
 
 int tfs_sym_link(char const *target, char const *link_name) {
-    ALWAYS_ASSERT(MAX_FILE_NAME <= state_block_size(),
-            "tfs_sym_link: maximum filename size is bigger than block size")
-        
+    ALWAYS_ASSERT(
+        MAX_FILE_NAME <= state_block_size(),
+        "tfs_sym_link: maximum filename size is bigger than block size")
+
     // Checks if the path name is valid
     if (!valid_pathname(target) || !valid_pathname(link_name)) {
         return -1;
     }
 
     // check if target exists and link does not
-    if(tfs_lookup(target, ROOT_DIR_INUM) == -1 || tfs_lookup(link_name, ROOT_DIR_INUM) != -1)
+    if (tfs_lookup(target, ROOT_DIR_INUM) == -1 ||
+        tfs_lookup(link_name, ROOT_DIR_INUM) != -1)
         return -1;
 
     // create symlink inode
@@ -218,7 +219,7 @@ int tfs_link(char const *target, char const *link_name) {
     int err;
     if (!valid_pathname(target) || !valid_pathname(link_name))
         return -1;
-    
+
     // get inum
     int inum = tfs_lookup(target, ROOT_DIR_INUM);
     if (inum == -1)
@@ -270,7 +271,7 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
 
     // Locking this file for writing
     RWLOCK_WRLOCK(open_file_rwlocks + fhandle);
-    
+
     //  From the open file table entry, we get the inode
     inode_t *inode = inode_get(file->of_inumber);
     ALWAYS_ASSERT(inode != NULL, "tfs_write: inode of open file deleted");
@@ -328,7 +329,7 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
     RWLOCK_RDLOCK(open_file_rwlocks + fhandle);
     // Locking the corresponding inode for reading
     RWLOCK_RDLOCK(inode_rwlocks + file->of_inumber);
-    
+
     // From the open file table entry, we get the inode
     inode_t *inode = inode_get(file->of_inumber);
     ALWAYS_ASSERT(inode != NULL, "tfs_read: inode of open file deleted");
@@ -348,7 +349,7 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
     file->of_offset += to_read;
     RWLOCK_UNLOCK(inode_rwlocks + file->of_inumber);
     RWLOCK_UNLOCK(open_file_rwlocks + fhandle);
-    
+
     return (ssize_t)to_read;
 }
 
@@ -365,7 +366,7 @@ int tfs_unlink(char const *target) {
         return -1;
 
     // clear dir entry
-    err = clear_dir_entry(ROOT_DIR_INUM, target+1); 
+    err = clear_dir_entry(ROOT_DIR_INUM, target + 1);
     if (err == -1)
         return -1;
 
@@ -378,7 +379,7 @@ int tfs_unlink(char const *target) {
     // decrease hard link count and if 0 delete inode
     inode->i_hardl--;
     RWLOCK_UNLOCK(inode_rwlocks + inum);
-    if(inode->i_hardl == 0) {
+    if (inode->i_hardl == 0) {
         inode_delete(inum);
         return 0;
     }
@@ -387,7 +388,7 @@ int tfs_unlink(char const *target) {
 }
 
 int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
-    FILE* source_handle = fopen(source_path, "r");
+    FILE *source_handle = fopen(source_path, "r");
     if (source_handle == NULL)
         return -1;
 
@@ -400,10 +401,12 @@ int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
     size_t read_result;
     size_t block_size = state_block_size();
     char buffer[block_size];
-    
-    while(!feof(source_handle)) {
+
+    while (!feof(source_handle)) {
         read_result = fread(buffer, sizeof(char), block_size, source_handle);
-        if (ferror(source_handle) || tfs_write(dest_handle, buffer, read_result*sizeof(char)) != read_result*sizeof(char)) {
+        if (ferror(source_handle) ||
+            tfs_write(dest_handle, buffer, read_result * sizeof(char)) !=
+                read_result * sizeof(char)) {
             fclose(source_handle);
             tfs_close(dest_handle);
             return -1;

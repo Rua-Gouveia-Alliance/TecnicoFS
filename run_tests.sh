@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 for file in tests/*
 do
