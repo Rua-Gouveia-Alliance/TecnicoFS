@@ -28,8 +28,6 @@ tfs_params tfs_default_params() {
     return params;
 }
 
-static pthread_mutex_t open_create_mutex;
-
 int tfs_init(tfs_params const *params_ptr) {
     tfs_params params;
     if (params_ptr != NULL) {
@@ -38,7 +36,7 @@ int tfs_init(tfs_params const *params_ptr) {
         params = tfs_default_params();
     }
 
-    MUTEX_INIT(&open_create_mutex);
+    MUTEX_INIT(&file_exists_mutex);
     if (state_init(params) != 0) {
         return -1;
     }
@@ -48,8 +46,6 @@ int tfs_init(tfs_params const *params_ptr) {
     if (root != ROOT_DIR_INUM) {
         return -1;
     }
-    
-    MUTEX_INIT(&file_exists_mutex);
 
     return 0;
 }
@@ -60,7 +56,6 @@ int tfs_destroy() {
     if (state_destroy() != 0) {
         return -1;
     }
-    MUTEX_DESTROY(&open_create_mutex);
     return 0;
 }
 
@@ -118,13 +113,14 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
             char *block = data_block_get(inode->i_data_block);
             strncpy(buffer, block, MAX_FILE_NAME);
 
-            if(tfs_open(buffer, mode) == -1) {
+            int new_handle = tfs_open(buffer, mode);
+            if(new_handle == -1) {
                 free(buffer);
                 return -1;
             }
 
             free(buffer);
-            return 0;
+            return new_handle;
         }
 
         // Truncate (if requested)
@@ -165,7 +161,6 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
         return -1;
     }
 
-    MUTEX_UNLOCK(&open_create_mutex);
     // Finally, add entry to the open file table and return the corresponding
     // handle
     return add_to_open_file_table(inum, offset);
@@ -376,15 +371,16 @@ int tfs_unlink(char const *target) {
     inode_t *inode = inode_get(inum);
     ALWAYS_ASSERT(inode != NULL,
                   "tfs_unlink: directory files must have an inode");
-    RWLOCK_WRLOCK(inode_rwlocks + inum);
 
+    RWLOCK_WRLOCK(inode_rwlocks + inum);
     // decrease hard link count and if 0 delete inode
     inode->i_hardl--;
+    RWLOCK_UNLOCK(inode_rwlocks + inum);
     if(inode->i_hardl == 0) {
         inode_delete(inum);
+        return 0;
     }
 
-    RWLOCK_UNLOCK(inode_rwlocks + inum);
     return 0;
 }
 

@@ -198,10 +198,10 @@ static int inode_alloc(void) {
             insert_delay(); // simulate storage access delay (to freeinode_ts)
         }
 
-        RWLOCK_WRLOCK(inode_rwlocks + inumber);
         // Locking for writing. If we only lock for reading before
         // this if statement, theres the possibility a writer is queued
         // for this inode, which could change its status from FREE after we checked for it.
+        RWLOCK_WRLOCK(inode_rwlocks + inumber);
         if (freeinode_ts[inumber] == FREE) { // Finds first free entry in inode table
             //  Found a free entry, so takes it for the new inode
             freeinode_ts[inumber] = TAKEN;
@@ -292,8 +292,6 @@ int inode_create(inode_type i_type) {
         inode_table[inumber].i_data_block = -1;
         break;
     default:
-        RWLOCK_UNLOCK(inode_rwlocks + inumber);
-        RWLOCK_UNLOCK(&inode_manipulation_rwlock);
         PANIC("inode_create: unknown file type");
     }
 
