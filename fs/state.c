@@ -1,5 +1,4 @@
 #include "state.h"
-#include "betterassert.h"
 
 #include <pthread.h>
 #include <stdbool.h>
@@ -8,6 +7,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <pthread.h>
+
+#include "betterassert.h"
+#include "betterlocks.h"
 
 /*
  * Persistent FS state

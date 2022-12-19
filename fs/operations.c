@@ -11,6 +11,7 @@
 #include <pthread.h>
 
 #include "betterassert.h"
+#include "betterlocks.h"
 
 static pthread_mutex_t file_exists_mutex;
 
