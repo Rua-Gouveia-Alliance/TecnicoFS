@@ -616,8 +616,6 @@ void *data_block_get(int block_number) {
  *   - No space in open file table for a new open file.
  */
 int add_to_open_file_table(int inumber, size_t offset) {
-    MUTEX_LOCK(&of_mutex);
-
     for (int i = 0; i < MAX_OPEN_FILES; i++) {
         RWLOCK_WRLOCK(open_file_rwlocks + i);
         if (free_open_file_entries[i] == FREE) {
@@ -631,8 +629,6 @@ int add_to_open_file_table(int inumber, size_t offset) {
 
         RWLOCK_UNLOCK(open_file_rwlocks + i);
     }
-
-    MUTEX_UNLOCK(&of_mutex);
     return -1;
 }
 
