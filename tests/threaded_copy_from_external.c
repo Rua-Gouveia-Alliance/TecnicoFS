@@ -18,6 +18,8 @@ int equal_files(FILE* local_fs, int tfs) {
     size_t local_fs_result;
     ssize_t tfs_result;
     
+    memset(local_fs_buffer, 0, BLOCK_SIZE);
+    memset(tfs_buffer, 0, BLOCK_SIZE);
     while(!feof(local_fs) && (tfs_result = tfs_read(tfs, tfs_buffer, BLOCK_SIZE)) != 0) {
         local_fs_result = fread(local_fs_buffer, sizeof(char), BLOCK_SIZE, local_fs);
         
@@ -27,8 +29,9 @@ int equal_files(FILE* local_fs, int tfs) {
         if (local_fs_result != tfs_result)
             return -1;
         
-        if (strncmp(local_fs_buffer, tfs_buffer, BLOCK_SIZE) != 0)
+        if (strncmp(local_fs_buffer, tfs_buffer, BLOCK_SIZE) != 0) {
             return -1;
+        }
     }
 
     tfs_result = tfs_read(tfs, tfs_buffer, BLOCK_SIZE);
