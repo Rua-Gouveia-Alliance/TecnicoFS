@@ -10,6 +10,11 @@
 #include <sys/types.h>
 #include <pthread.h>
 
+// Locks
+extern pthread_rwlock_t *inode_rwlocks;
+extern pthread_rwlock_t *data_rwlocks;
+extern pthread_rwlock_t* open_file_rwlocks;
+
 /**
  * Directory entry
  */
@@ -28,7 +33,6 @@ typedef struct {
     size_t i_size;
     int i_data_block;
     int i_hardl;
-    pthread_rwlock_t i_rwlock;
 } inode_t;
 
 typedef enum { FREE = 0, TAKEN = 1 } allocation_state_t;
@@ -45,14 +49,15 @@ int state_init(tfs_params);
 int state_destroy(void);
 
 size_t state_block_size(void);
+size_t max_open_files(void);
 
 int inode_create(inode_type n_type); /* inode_mutex */
 void inode_delete(int inumber); /* inode_mutex */
 inode_t *inode_get(int inumber);
 
-int clear_dir_entry(inode_t *inode, char const *sub_name); /* i_rwlock */
-int add_dir_entry(inode_t *inode, char const *sub_name, int sub_inumber); /* i_rwlock */
-int find_in_dir(inode_t *inode, char const *sub_name); /* i_rwlock */
+int clear_dir_entry(int inumber, char const *sub_name); /* i_rwlock */
+int add_dir_entry(int inumber, char const *sub_name, int sub_inumber); /* i_rwlock */
+int find_in_dir(int inumber, char const *sub_name); /* i_rwlock */
 
 int data_block_alloc(void); /* data_mutex */
 void data_block_free(int block_number); /* data_mutex */

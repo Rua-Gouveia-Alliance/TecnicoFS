@@ -31,6 +31,9 @@
 
 #define RWLOCK_INIT(rwlock) {int m_err = pthread_rwlock_init(rwlock, 0);       \
         ALWAYS_ASSERT(m_err != -1, "pthread_rwlock_init critical error")}
+        
+#define RWLOCK_DESTROY(rwlock) {int m_err = pthread_rwlock_destroy(rwlock);    \
+        ALWAYS_ASSERT(m_err != -1, "pthread_rwlock_destroy critical error")}
 
 #define RWLOCK_RDLOCK(rwlock) {int m_err = pthread_rwlock_rdlock(rwlock);      \
         ALWAYS_ASSERT(m_err != -1, "pthread_rwlock_rdlock critical error")}
