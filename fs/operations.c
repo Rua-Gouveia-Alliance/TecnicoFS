@@ -36,7 +36,6 @@ int tfs_init(tfs_params const *params_ptr) {
         params = tfs_default_params();
     }
 
-    MUTEX_INIT(&file_exists_mutex);
     if (state_init(params) != 0) {
         return -1;
     }
@@ -46,6 +45,8 @@ int tfs_init(tfs_params const *params_ptr) {
     if (root != ROOT_DIR_INUM) {
         return -1;
     }
+
+    MUTEX_INIT(&file_exists_mutex);
 
     return 0;
 }
