@@ -102,6 +102,7 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
     size_t offset;
 
     if (inum >= 0) { // The file already exists
+        RWLOCK_WRLOCK(inode_rwlocks + inum);
         MUTEX_UNLOCK(&file_exists_mutex);
 
         inode_t *inode = inode_get(inum);
@@ -256,8 +257,6 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
 
     // Locking this file for writing
     RWLOCK_WRLOCK(open_file_rwlocks + fhandle);
-    // Locking the corresponding inode for reading
-    RWLOCK_RDLOCK(inode_rwlocks + file->of_inumber);
     //  From the open file table entry, we get the inode
     inode_t *inode = inode_get(file->of_inumber);
     ALWAYS_ASSERT(inode != NULL, "tfs_write: inode of open file deleted");
@@ -269,6 +268,8 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
     }
 
     if (to_write > 0) {
+        // Locking the corresponding inode for writing
+        RWLOCK_WRLOCK(inode_rwlocks + file->of_inumber);
         if (inode->i_size == 0) {
             // If empty file, allocate new block
             int bnum = data_block_alloc();
@@ -280,8 +281,8 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
 
             inode->i_data_block = bnum;
         }
-
         RWLOCK_WRLOCK(data_rwlocks + inode->i_data_block);
+        RWLOCK_UNLOCK(inode_rwlocks + file->of_inumber);
         void *block = data_block_get(inode->i_data_block);
         ALWAYS_ASSERT(block != NULL, "tfs_write: data block deleted mid-write");
 
@@ -296,7 +297,6 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
         }
     }
 
-    RWLOCK_UNLOCK(inode_rwlocks + file->of_inumber);
     RWLOCK_UNLOCK(open_file_rwlocks + fhandle);
 
     return (ssize_t)to_write;
