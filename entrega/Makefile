@@ -8,7 +8,7 @@ LD ?= gcc
 CLANG_FORMAT ?= clang-format
 
 # space separated list of directories with header files
-INCLUDE_DIRS := fs .
+INCLUDE_DIRS := fs util .
 # this creates a space separated list of -I<dir> where <dir> is each of the values in INCLUDE_DIRS
 INCLUDES := $(addprefix -I, $(INCLUDE_DIRS))
 
