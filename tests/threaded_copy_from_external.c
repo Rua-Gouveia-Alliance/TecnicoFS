@@ -13,7 +13,6 @@ const char *source_paths[] = {"tests/empty_file.txt", "tests/file_to_copy.txt",
                               "tests/file_to_copy_over512.txt"};
 const char *dest_paths[] = {"/f1", "/f2", "/f3"};
 
-
 void *test(void *id) {
     int i = *((int *)id);
     assert(tfs_copy_from_external_fs(source_paths[i], dest_paths[i]) != -1);
