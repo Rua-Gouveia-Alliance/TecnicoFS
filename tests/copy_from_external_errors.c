@@ -20,6 +20,9 @@ int main() {
     // Scenario 2: destination path is not a valid path
     assert(tfs_copy_from_external_fs("tests/file_to_copy.txt", "not_a_valid_path") == -1);
 
+    // Scenario 3: file size is bigger than the block size
+    assert(tfs_copy_from_external_fs("tests/file_to_copy_too_big.txt",  path1) == -1);
+
     printf("Successful test.\n");
 
     return 0;
