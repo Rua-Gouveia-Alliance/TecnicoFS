@@ -93,6 +93,7 @@ int main(void) {
         assert(link != -1);
         int result = equal_files(source, link);
         assert(result == 0);
+        assert(tfs_close(source) != -1);
     }
 
     // Unlinking the files

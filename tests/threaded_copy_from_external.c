@@ -75,6 +75,8 @@ int main(void) {
         assert(local_fs != NULL);
         int result = equal_files(local_fs, tfs);
         assert(result == 0);
+        assert(tfs_close(tfs) != -1);
+        fclose(local_fs);
     }
 
     printf("Successful test.\n");
