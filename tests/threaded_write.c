@@ -49,9 +49,6 @@ int main(void) {
     assert(handle != -1);
     assert(tfs_read(handle, buffer, BLOCK_SIZE) != -1);
 
-    // debug
-    // printf("%s\n%s\n", final_msg, buffer);
-
     // compare
     assert(strncmp(buffer, final_msg, BLOCK_SIZE) == 0);
 
