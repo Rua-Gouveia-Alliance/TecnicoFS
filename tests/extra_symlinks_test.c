@@ -50,7 +50,7 @@ int main(void) {
     for (int i = 0; i < FILES; i++)
         assert(tfs_copy_from_external_fs(source_paths[i], dest_paths[i]) != -1);
 
-    // Creating the links
+    // Creating the sym_links
     for (int i = 0; i < FILES; i++)
         assert(tfs_sym_link(dest_paths[i], symlink_paths[i]) != -1);
 
