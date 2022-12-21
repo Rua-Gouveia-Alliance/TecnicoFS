@@ -4,8 +4,9 @@ Project done in the scope of the course Operating Systems, IST 2022/2023.
 
 # List of contents
 
-1. [Enunciado](#Enunciado)
-1. [Pull updates](#Pull-updates)
+1. [Enunciado (1º Exercício)](#enunciado-1º-exercício)
+2. [Enunciado (2º Exercício)](#enunciado-2º-exercício--message-broker)
+3. [Pull updates](#Pull-updates)
 
 # Enunciado (1º Exercício)
 
