@@ -2,7 +2,22 @@
 tests/*
 !tests/*.c
 !tests/*.h
-!tests/*.txt
+
+manager/*
+!manager/*.c
+!manager/*.h
+
+mbroker/*
+!mbroker/*.c
+!mbroker/*.h
+
+publisher/*
+!publisher/*.c
+!publisher/*.h
+
+subscriber/*
+!subscriber/*.c
+!subscriber/*.h
 
 ######################
 # C Ignores
