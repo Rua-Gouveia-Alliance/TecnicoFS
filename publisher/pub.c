@@ -1,7 +1,10 @@
 #include "betterassert.h"
 #include "betterpipes.h"
 #include "clientconfig.h"
+#include "opcodes.h"
+#include "serverrequests.h"
 #include <errno.h>
+#include <fcntl.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -17,9 +20,9 @@ size_t get_pid(pid_t *pid) {
 }
 
 int main(int argc, char **argv) {
-    ALWAYS_ASSERT(argc != 3, "usage: pub <register_pipe> <box_name>\n");
-    char *provided_box_name = (char *)argv[2];
-    size_t box_name_size = strlen(provided_box_name) + 1;
+    ALWAYS_ASSERT(argc == 3, "usage: pub <register_pipe> <box_name>\n");
+    char *box_name = (char *)argv[2];
+    size_t box_name_size = strlen(box_name) + 1;
     ALWAYS_ASSERT(box_name_size < 33, "invalid box name\n");
 
     // Creating the FIFO, using PID to guarantee that the name is unique
@@ -30,10 +33,28 @@ int main(int argc, char **argv) {
     MK_FIFO(path);
 
     // Creating the string that will be sent to the server
-    char pipe_name[PIPE_NAME], box_name[BOX_NAME];
-    strncpy(pipe_name, path, path_size);
-    memset(pipe_name + path_size, '\0', PIPE_NAME - path_size);
-    strncpy(box_name, provided_box_name, box_name_size);
-    memset(box_name + box_name_size, '\0', BOX_NAME - box_name_size);
+    char request[REQUEST_SIZE];
+    create_request(request, PUBLISHER, path, box_name, path_size,
+                   box_name_size);
+
+    // Opening the server FIFO and sending the request
+    int fifo_fd = open(argv[1], O_WRONLY);
+    ALWAYS_ASSERT(fifo_fd != -1, "invalid register_pipe");
+    write(fifo_fd, request, REQUEST_SIZE);
+
+    // Opening the FIFO that communicates with the server
+    fifo_fd = open(path, O_WRONLY);
+    ALWAYS_ASSERT(fifo_fd != -1, "opening pipe critical error");
+
+    // Reading from stdin and sending it through the fifo
+    char buffer[MESSAGE_SIZE];
+    for (size_t i = 0; i < 2; i++) {
+        int size;
+        size = (int)read(STDIN_FILENO, buffer, 5);
+        ALWAYS_ASSERT(size > 0, "reading error");
+        memset(buffer + (size_t)size, '\0', MESSAGE_SIZE - (size_t)size);
+        write(fifo_fd, buffer, MESSAGE_SIZE);
+    }
+
     return 0;
 }
