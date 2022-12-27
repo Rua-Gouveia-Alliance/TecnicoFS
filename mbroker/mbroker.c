@@ -6,6 +6,7 @@
 #include <pthread.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #define TRUE 1
 
@@ -23,10 +24,10 @@ void *producer() {
 
 void server_init(char *fifo_path, pthread_t *threads, size_t max_sessions) {
     MK_FIFO(fifo_path);
-
-    ALWAYS_ASSERT(pcq_create(pc_queue, max_sessions) != -1,
-                  "producer-consumer critical error");
-
+    /*
+        ALWAYS_ASSERT(pcq_create(pc_queue, max_sessions) != -1,
+                      "producer-consumer critical error");
+    */
     for (size_t i = 0; i < max_sessions; i++)
         THREAD_CREATE(threads + i, consumer);
 }
