@@ -1,6 +1,5 @@
 #include "betterassert.h"
 #include "betterpipes.h"
-#include "clientconfig.h"
 #include "opcodes.h"
 #include "serverrequests.h"
 #include <errno.h>
@@ -36,24 +35,26 @@ int main(int argc, char **argv) {
     char request[REQUEST_SIZE];
     create_request(request, PUBLISHER, path, box_name, path_size,
                    box_name_size);
-
     // Opening the server FIFO and sending the request
-    int fifo_fd = open(argv[1], O_WRONLY);
-    ALWAYS_ASSERT(fifo_fd != -1, "invalid register_pipe");
-    write(fifo_fd, request, REQUEST_SIZE);
-
-    // Opening the FIFO that communicates with the server
-    fifo_fd = open(path, O_WRONLY);
-    ALWAYS_ASSERT(fifo_fd != -1, "opening pipe critical error");
+    int register_fd = open(argv[1], O_WRONLY);
+    ALWAYS_ASSERT(register_fd != -1, "invalid register_pipe");
+    write(register_fd, request, REQUEST_SIZE);
+    close(register_fd);
 
     // Reading from stdin and sending it through the fifo
     char buffer[MESSAGE_SIZE];
     for (size_t i = 0; i < 2; i++) {
+        // Opening the FIFO that communicates with the server
+        int fifo_fd = open(path, O_WRONLY);
+        ALWAYS_ASSERT(fifo_fd != -1, "opening pipe critical error");
+
         int size;
-        size = (int)read(STDIN_FILENO, buffer, 5);
+        size = (int)read(STDIN_FILENO, buffer, MESSAGE_SIZE);
         ALWAYS_ASSERT(size > 0, "reading error");
         memset(buffer + (size_t)size, '\0', MESSAGE_SIZE - (size_t)size);
         write(fifo_fd, buffer, MESSAGE_SIZE);
+        
+        close(fifo_fd);
     }
 
     return 0;

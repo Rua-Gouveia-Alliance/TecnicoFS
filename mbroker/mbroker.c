@@ -1,7 +1,6 @@
 #include "betterassert.h"
 #include "betterpipes.h"
 #include "betterthreads.h"
-#include "clientconfig.h"
 #include "opcodes.h"
 #include "operations.h"
 #include "producer-consumer.h"
@@ -19,7 +18,7 @@
 #define BOXES_BLOCK 100
 
 typedef struct {
-    char name[BOX_SIZE + 1];
+    char path[BOX_PATH_SIZE];
     size_t n_publishers;
     size_t n_subscribers;
     size_t size;
@@ -30,23 +29,23 @@ int box_count = 0;
 size_t boxes_allocated_size = 0;
 pc_queue_t *pc_queue;
 
-void box_init(box_t *box, char *name) {
+void box_init(box_t *box, char *path) {
     box = malloc(sizeof(box));
     box->size = 0;
     box->n_publishers = 0;
     box->n_subscribers = 0;
-    strncpy(box->name, name, BOX_SIZE);
+    strncpy(box->path, path, BOX_PATH_SIZE);
 }
 
-int box_lookup(char *name) {
+int box_lookup(char *path) {
     for (int i = 0; i < box_count; i++)
-        if (strncmp(name, boxes[i]->name, BOX_SIZE) == 0)
+        if (strncmp(path, boxes[i]->path, BOX_SIZE) == 0)
             return i;
     return -1;
 }
 
-int remove_box(char *name) {
-    int index = box_lookup(name);
+int remove_box(char *path) {
+    int index = box_lookup(path);
     if (index != -1) {
         box_count--;
         for (int i = index; i < box_count; i++)
@@ -66,35 +65,31 @@ int add_box(box_t *box) {
     return box_count - 1;
 }
 
-void publisher_session(int pipe_fd, int tfs_fd, int id) {
-    (void)tfs_fd;
+void publisher_session(char *fifo_path, char *box_path, int id) {
     (void)id;
     char buffer[MESSAGE_SIZE];
+    int tfs_fd = tfs_open(box_path, TFS_O_APPEND | TFS_O_CREAT);
     for (;;) {
+        int pipe_fd = open(fifo_path, O_RDONLY);
         read(pipe_fd, buffer, MESSAGE_SIZE);
-        printf("%s", buffer);
+        close(pipe_fd);
     }
+    tfs_close(tfs_fd);
 }
 
 void consumer(char *request) {
     for (;;) {
         int op_code;
-        char fifo[PIPE_SIZE], box_name[BOX_SIZE];
-
-        parse_request(request, &op_code, fifo, box_name);
-        printf("%s", fifo);
+        char fifo[PIPE_SIZE], box_path[BOX_PATH_SIZE];
+        parse_request(request, &op_code, fifo, box_path);
 
         switch (op_code) {
         case PUBLISHER:
-            int id;
+            int id = 0;
             // If the box doesnt exist, reject the publisher
-            if ((id = box_lookup(box_name)) == -1)
-                return; // Esta implemencatacao nao esta bem, e so provisorio
-            int tfs_fd = tfs_open(box_name, TFS_O_APPEND | TFS_O_CREAT);
-            int pipe_fd = open(fifo, O_RDONLY);
-            publisher_session(pipe_fd, tfs_fd, id);
-            tfs_close(tfs_fd);
-            close(pipe_fd);
+            // if ((id = box_lookup(box_name)) == -1)
+            //    return; // Esta implemencatacao nao esta bem, e so provisorio
+            publisher_session(fifo, box_path, id);
             break;
         default:
             PANIC("invalid op_code")
@@ -107,6 +102,7 @@ void server_init(char *fifo_path, pthread_t *threads, size_t max_sessions) {
     (void)threads;
     (void)max_sessions;
     MK_FIFO(fifo_path);
+    tfs_init(NULL);
     boxes = malloc(BOXES_BLOCK * sizeof(box_t *));
     /*
         ALWAYS_ASSERT(pcq_create(pc_queue, max_sessions) != -1,
@@ -127,11 +123,12 @@ int main(int argc, char **argv) {
                     "invalid max_sessions value\n");
     */
     server_init(fifo_path, NULL, 0);
-    int fifo = open(fifo_path, O_RDONLY);
     for (;;) {
+        int fifo = open(fifo_path, O_RDONLY);
         char buffer[REQUEST_SIZE];
         read(fifo, buffer, REQUEST_SIZE);
         consumer(buffer);
+        close(fifo);
     }
     /*
         pthread_t threads[sessions];
