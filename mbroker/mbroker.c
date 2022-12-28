@@ -115,8 +115,10 @@ int add_box(char *path) {
 
 void publisher_session(char *fifo_path, int id) {
     char buffer[MESSAGE_SIZE];
+    char contents[CONTENTS_SIZE];
     for (;;) {
         memset(buffer, '\0', MESSAGE_SIZE);
+        memset(contents, '\0', CONTENTS_SIZE);
 
         // Reading one message from the FIFO
         int pipe_fd = open(fifo_path, O_RDONLY);
@@ -126,7 +128,6 @@ void publisher_session(char *fifo_path, int id) {
         // Processing the received message
         int op_code;
         size_t message_size;
-        char contents[CONTENTS_SIZE];
         parse_message(buffer, &op_code, contents, &message_size);
 
         // Writing the contents to tfs
@@ -136,8 +137,9 @@ void publisher_session(char *fifo_path, int id) {
         tfs_close(tfs_fd);
 
         // Updating the box
-        boxes[id]->messages[boxes[id]->message_count++] = (size_t)written_size;
+        boxes[id]->messages[boxes[id]->message_count] = (size_t)written_size;
         boxes[id]->size += (size_t)written_size;
+        boxes[id]->message_count++;
 
         // Notifying all subscribers
         pthread_cond_broadcast(box_cond + id);
@@ -145,33 +147,45 @@ void publisher_session(char *fifo_path, int id) {
 }
 
 void subscriber_session(char *fifo_path, int id) {
-    size_t read_count = 0;
+    size_t message_count = 0;
+    // Nao quero criar mas tmb nao ha tfs RDONLY, so provisorio
+    int tfs_fd = tfs_open(boxes[id]->path, TFS_O_CREAT);
+
+    char buffer[MESSAGE_SIZE];
+    char contents[CONTENTS_SIZE];
     for (;;) {
-        while (read_count == boxes[id]->message_count)
+        memset(buffer, '\0', MESSAGE_SIZE);
+        memset(contents, '\0', CONTENTS_SIZE);
+
+        MUTEX_LOCK(box_mutex + id);
+
+        while (message_count == boxes[id]->message_count)
             pthread_cond_wait(box_cond + id, box_mutex + id);
 
+        MUTEX_UNLOCK(box_mutex + id);
+
         // Reading one message's contents from tfs
-        char contents[CONTENTS_SIZE];
-        // Nao quero criar mas tmb nao ha tfs RDONLY, so provisorio
-        int tfs_fd = tfs_open(boxes[id]->path, TFS_O_CREAT);
         ssize_t result =
-            tfs_read(tfs_fd, contents, boxes[id]->messages[read_count]);
+            tfs_read(tfs_fd, contents, boxes[id]->messages[message_count]);
         ALWAYS_ASSERT(result != -1, "tfs_read critical error");
 
         // Creating the message
-        char message[MESSAGE_SIZE];
-        create_message(message, SUBSCRIBER_MESSAGE, contents);
+        create_message(buffer, SUBSCRIBER_MESSAGE, contents);
 
         // Sending the message through the FIFO
         int pipe_fd = open(fifo_path, O_WRONLY);
-        read(pipe_fd, message, MESSAGE_SIZE);
+        write(pipe_fd, buffer, MESSAGE_SIZE);
         close(pipe_fd);
+
+        message_count++;
     }
+    tfs_close(tfs_fd);
 }
 
 void *consumer() {
     for (;;) {
         char *request = (char *)pcq_dequeue(pc_queue);
+        ALWAYS_ASSERT(request != NULL, "producer-consumer critical error");
         int op_code;
         char fifo[PIPE_SIZE], box_path[BOX_PATH_SIZE];
         parse_request(request, &op_code, fifo, box_path);
@@ -258,14 +272,15 @@ int main(int argc, char **argv) {
     pthread_t threads[sessions];
     server_init(argv[1], threads, sessions);
 
-    add_box("/yo");
+    add_box("/hello_world");
 
     for (;;) {
         char buffer[REQUEST_SIZE];
         int fifo = open(fifo_path, O_RDONLY);
         read(fifo, buffer, REQUEST_SIZE);
         close(fifo);
-        pcq_enqueue(pc_queue, buffer);
+        ALWAYS_ASSERT(pcq_enqueue(pc_queue, buffer) != -1,
+                      "producer-consumer critical error");
     }
     return 0;
 }

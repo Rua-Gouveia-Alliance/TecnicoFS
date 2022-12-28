@@ -33,10 +33,12 @@ int main(int argc, char **argv) {
     // Reading from stdin and sending it through the fifo
     char buffer[CONTENTS_SIZE];
     for (;;) {
-        char message[MESSAGE_SIZE];
         memset(buffer, '\0', CONTENTS_SIZE);
 
-        read(STDIN_FILENO, buffer, CONTENTS_SIZE);
+        ssize_t size = read(STDIN_FILENO, buffer, CONTENTS_SIZE);
+        buffer[size - 1] = '\0';
+
+        char message[MESSAGE_SIZE];
         create_message(message, PUBLISHER_MESSAGE, buffer);
 
         // Opening the FIFO that communicates with the server

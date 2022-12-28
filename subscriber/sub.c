@@ -31,10 +31,9 @@ int main(int argc, char **argv) {
     close(register_fd);
 
     // Reading to stdout what is sent through the FIFO
-    char buffer[CONTENTS_SIZE];
+    char message[MESSAGE_SIZE];
     for (;;) {
-        char message[MESSAGE_SIZE];
-        memset(buffer, '\0', CONTENTS_SIZE);
+        memset(message, '\0', CONTENTS_SIZE);
 
         // Opening the FIFO that communicates with the server
         int fifo_fd = open(path, O_RDONLY);
@@ -45,8 +44,9 @@ int main(int argc, char **argv) {
         // Printing the received message
         int op_code;
         size_t size;
+        char buffer[CONTENTS_SIZE];
         parse_message(message, &op_code, buffer, &size);
-        printf("Message received\n");
+
         printf("%d %s\n", op_code, buffer);
     }
 
