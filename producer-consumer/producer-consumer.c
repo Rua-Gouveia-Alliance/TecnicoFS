@@ -1,6 +1,6 @@
 #include "producer-consumer.h"
 
-#include <semaphore.h>
+#include <stdlib.h>
 
 int pcq_create(pc_queue_t *queue, size_t capacity) {
     queue->pcq_capacity = capacity;
@@ -70,6 +70,8 @@ int pcq_enqueue(pc_queue_t *queue, void *elem) {
         return -1;
 
     pthread_cond_signal(&queue->pcq_popper_condvar);
+
+    return 0;
 }
 
 void *pcq_dequeue(pc_queue_t *queue) {
@@ -78,14 +80,14 @@ void *pcq_dequeue(pc_queue_t *queue) {
                           &queue->pcq_popper_condvar_lock);
 
     if (pthread_mutex_lock(&queue->pcq_tail_lock) != 0)
-        return -1;
+        return NULL;
 
     void *elem;
     elem = queue->pcq_buffer[queue->pcq_tail];
     queue->pcq_tail = (queue->pcq_tail + 1) % queue->pcq_capacity;
 
     if (pthread_mutex_unlock(&queue->pcq_tail_lock) != 0)
-        return -1;
+        return NULL;
 
     pthread_cond_signal(&queue->pcq_pusher_condvar);
 
