@@ -68,7 +68,6 @@ int add_box(box_t *box) {
 }
 
 void publisher_session(char *fifo_path, int id) {
-    (void)id;
     char buffer[MESSAGE_SIZE];
     int tfs_fd = tfs_open(boxes[id]->path, TFS_O_APPEND);
     for (;;) {
@@ -83,8 +82,6 @@ void publisher_session(char *fifo_path, int id) {
         char contents[CONTENTS_SIZE];
         parse_message(buffer, &op_code, contents, &message_size);
 
-        printf("%s\n", contents);
-
         ssize_t result = tfs_write(tfs_fd, buffer, message_size);
         ALWAYS_ASSERT(result != -1, "tfs_write critical error");
         boxes[id]->size += message_size;
@@ -97,68 +94,69 @@ void subscriber_session(char *fifo_path, int id) {
     (void)id;
 }
 
-void consumer(char *request) {
+void *consumer() {
     for (;;) {
+        char *request = (char *)pcq_dequeue(pc_queue);
         int op_code;
         char fifo[PIPE_SIZE], box_path[BOX_PATH_SIZE];
         parse_request(request, &op_code, fifo, box_path);
 
         switch (op_code) {
         case PUBLISHER:
-            int id = 0;
+            int id;
             // If the box doesnt exist, reject the publisher
             if ((id = box_lookup(box_path)) == -1)
-                return; // Esta implemencatacao nao esta bem, e so provisorio
+                break; // Esta implemencatacao e so provisoria
             publisher_session(fifo, id);
             break;
         default:
-            PANIC("invalid op_code")
             break;
         }
     }
+    return NULL;
 }
 
 void server_init(char *fifo_path, pthread_t *threads, size_t max_sessions) {
-    (void)threads;
-    (void)max_sessions;
     MK_FIFO(fifo_path);
+
     tfs_init(NULL);
+
     boxes = malloc(BOXES_BLOCK * sizeof(box_t *));
     ALWAYS_ASSERT(boxes != NULL, "no memory");
-    box_mutex = malloc(BOXES_BLOCK * sizeof(pthread_cond_t *));
+
+    box_mutex = malloc(BOXES_BLOCK * sizeof(pthread_cond_t));
     ALWAYS_ASSERT(box_mutex != NULL, "no memory");
-    box_cond = malloc(BOXES_BLOCK * sizeof(pthread_cond_t *));
+
+    box_cond = malloc(BOXES_BLOCK * sizeof(pthread_cond_t));
     ALWAYS_ASSERT(box_cond != NULL, "no memory");
 
-    /*
-        ALWAYS_ASSERT(pcq_create(pc_queue, max_sessions) != -1,
-                      "producer-consumer critical error");
+    pc_queue = malloc(sizeof(pc_queue_t));
+    ALWAYS_ASSERT(pcq_create(pc_queue, max_sessions) != -1,
+                  "producer-consumer critical error");
+
     for (size_t i = 0; i < max_sessions; i++)
         THREAD_CREATE(threads + i, consumer);
-    */
 }
 
 int main(int argc, char **argv) {
     ALWAYS_ASSERT(argc == 3, "usage: mbroker <pipename> <max_sessions>\n");
 
-    // errno = 0;
-    char *fifo_path = argv[1];
-    /*
-        size_t sessions = strtoul(argv[2], &endptr, 10);
-        ALWAYS_ASSERT(errno == 0 && endptr != argv[2],
-                    "invalid max_sessions value\n");
-    */
-    server_init(fifo_path, NULL, 0);
+    char *fifo_path = argv[1], *endptr;
+
+    errno = 0;
+    size_t sessions = strtoul(argv[2], &endptr, 10);
+    ALWAYS_ASSERT(errno == 0 && endptr != argv[2],
+                  "invalid max_sessions value\n");
+
+    pthread_t threads[sessions];
+    server_init(argv[1], threads, sessions);
+
     for (;;) {
         int fifo = open(fifo_path, O_RDONLY);
         char buffer[REQUEST_SIZE];
         read(fifo, buffer, REQUEST_SIZE);
-        consumer(buffer);
         close(fifo);
+        pcq_enqueue(pc_queue, buffer);
     }
-    /*
-        pthread_t threads[sessions];
-        server_init(argv[1], threads, sessions);
-    */
     return 0;
 }

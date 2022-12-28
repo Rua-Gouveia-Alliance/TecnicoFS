@@ -68,7 +68,7 @@ int pcq_enqueue(pc_queue_t *queue, void *elem) {
 
     if (pthread_mutex_unlock(&queue->pcq_head_lock) != 0)
         return -1;
-
+    queue->pcq_current_size++;
     pthread_cond_signal(&queue->pcq_popper_condvar);
 
     return 0;
@@ -89,6 +89,7 @@ void *pcq_dequeue(pc_queue_t *queue) {
     if (pthread_mutex_unlock(&queue->pcq_tail_lock) != 0)
         return NULL;
 
+    queue->pcq_current_size--;
     pthread_cond_signal(&queue->pcq_pusher_condvar);
 
     return elem;
