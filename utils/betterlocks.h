@@ -57,4 +57,16 @@
         ALWAYS_ASSERT(m_err != -1, "pthread_rwlock_unlock critical error")     \
     }
 
+#define COND_INIT(cond)                                                        \
+    {                                                                          \
+        int m_err = pthread_cond_init(cond, NULL);                             \
+        ALWAYS_ASSERT(m_err != -1, "pthread_cond_init critical error")         \
+    }
+
+#define COND_DESTROY(cond)                                                     \
+    {                                                                          \
+        int m_err = pthread_cond_destroy(cond);                                \
+        ALWAYS_ASSERT(m_err != -1, "pthread_cond_destroy critical error")      \
+    }
+
 #endif
