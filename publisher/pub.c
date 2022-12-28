@@ -21,8 +21,7 @@ size_t get_pid(pid_t *pid) {
 int main(int argc, char **argv) {
     ALWAYS_ASSERT(argc == 3, "usage: pub <register_pipe> <box_name>\n");
     char *box_name = (char *)argv[2];
-    size_t box_name_size = strlen(box_name) + 1;
-    ALWAYS_ASSERT(box_name_size < 33, "invalid box name\n");
+    ALWAYS_ASSERT(strlen(box_name) < BOX_SIZE, "invalid box name\n");
 
     // Creating the FIFO, using PID to guarantee that the name is unique
     pid_t pid;
@@ -33,8 +32,7 @@ int main(int argc, char **argv) {
 
     // Creating the string that will be sent to the server
     char request[REQUEST_SIZE];
-    create_request(request, PUBLISHER, path, box_name, path_size,
-                   box_name_size);
+    create_request(request, PUBLISHER, path, box_name);
     // Opening the server FIFO and sending the request
     int register_fd = open(argv[1], O_WRONLY);
     ALWAYS_ASSERT(register_fd != -1, "invalid register_pipe");
@@ -42,18 +40,20 @@ int main(int argc, char **argv) {
     close(register_fd);
 
     // Reading from stdin and sending it through the fifo
-    char buffer[MESSAGE_SIZE];
-    for (size_t i = 0; i < 2; i++) {
+    char buffer[CONTENTS_SIZE];
+    for (;;) {
+        char message[MESSAGE_SIZE];
+        memset(buffer, '\0', CONTENTS_SIZE);
+
         // Opening the FIFO that communicates with the server
         int fifo_fd = open(path, O_WRONLY);
         ALWAYS_ASSERT(fifo_fd != -1, "opening pipe critical error");
 
-        int size;
-        size = (int)read(STDIN_FILENO, buffer, MESSAGE_SIZE);
-        ALWAYS_ASSERT(size > 0, "reading error");
-        memset(buffer + (size_t)size, '\0', MESSAGE_SIZE - (size_t)size);
-        write(fifo_fd, buffer, MESSAGE_SIZE);
-        
+        read(STDIN_FILENO, buffer, CONTENTS_SIZE);
+        create_message(message, PUBLISHER_MESSAGE, buffer);
+
+        write(fifo_fd, message, MESSAGE_SIZE);
+
         close(fifo_fd);
     }
 

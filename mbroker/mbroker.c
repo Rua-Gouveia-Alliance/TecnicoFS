@@ -26,6 +26,8 @@ typedef struct {
 
 box_t **boxes;
 int box_count = 0;
+pthread_cond_t *box_cond;
+pthread_mutex_t *box_mutex;
 size_t boxes_allocated_size = 0;
 pc_queue_t *pc_queue;
 
@@ -65,16 +67,34 @@ int add_box(box_t *box) {
     return box_count - 1;
 }
 
-void publisher_session(char *fifo_path, char *box_path, int id) {
+void publisher_session(char *fifo_path, int id) {
     (void)id;
     char buffer[MESSAGE_SIZE];
-    int tfs_fd = tfs_open(box_path, TFS_O_APPEND | TFS_O_CREAT);
+    int tfs_fd = tfs_open(boxes[id]->path, TFS_O_APPEND);
     for (;;) {
+        memset(buffer, '\0', MESSAGE_SIZE);
+
         int pipe_fd = open(fifo_path, O_RDONLY);
         read(pipe_fd, buffer, MESSAGE_SIZE);
         close(pipe_fd);
+
+        int op_code;
+        size_t message_size;
+        char contents[CONTENTS_SIZE];
+        parse_message(buffer, &op_code, contents, &message_size);
+
+        printf("%s\n", contents);
+
+        ssize_t result = tfs_write(tfs_fd, buffer, message_size);
+        ALWAYS_ASSERT(result != -1, "tfs_write critical error");
+        boxes[id]->size += message_size;
     }
     tfs_close(tfs_fd);
+}
+
+void subscriber_session(char *fifo_path, int id) {
+    (void)fifo_path;
+    (void)id;
 }
 
 void consumer(char *request) {
@@ -87,9 +107,9 @@ void consumer(char *request) {
         case PUBLISHER:
             int id = 0;
             // If the box doesnt exist, reject the publisher
-            // if ((id = box_lookup(box_name)) == -1)
-            //    return; // Esta implemencatacao nao esta bem, e so provisorio
-            publisher_session(fifo, box_path, id);
+            if ((id = box_lookup(box_path)) == -1)
+                return; // Esta implemencatacao nao esta bem, e so provisorio
+            publisher_session(fifo, id);
             break;
         default:
             PANIC("invalid op_code")
@@ -104,6 +124,12 @@ void server_init(char *fifo_path, pthread_t *threads, size_t max_sessions) {
     MK_FIFO(fifo_path);
     tfs_init(NULL);
     boxes = malloc(BOXES_BLOCK * sizeof(box_t *));
+    ALWAYS_ASSERT(boxes != NULL, "no memory");
+    box_mutex = malloc(BOXES_BLOCK * sizeof(pthread_cond_t *));
+    ALWAYS_ASSERT(box_mutex != NULL, "no memory");
+    box_cond = malloc(BOXES_BLOCK * sizeof(pthread_cond_t *));
+    ALWAYS_ASSERT(box_cond != NULL, "no memory");
+
     /*
         ALWAYS_ASSERT(pcq_create(pc_queue, max_sessions) != -1,
                       "producer-consumer critical error");

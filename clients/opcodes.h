@@ -13,4 +13,6 @@
 #define BOX_LIST 7
 #define BOX_LIST_ANS 8
 
+#define PUBLISHER_MESSAGE 10
+
 #endif
