@@ -238,7 +238,7 @@ void server_init(char *fifo_path, pthread_t *threads, size_t max_sessions) {
     boxes = malloc(BOXES_BLOCK * sizeof(box_t *));
     ALWAYS_ASSERT(boxes != NULL, "no memory");
 
-    box_mutex = malloc(BOXES_BLOCK * sizeof(pthread_cond_t));
+    box_mutex = malloc(BOXES_BLOCK * sizeof(pthread_mutex_t));
     ALWAYS_ASSERT(box_mutex != NULL, "no memory");
 
     box_cond = malloc(BOXES_BLOCK * sizeof(pthread_cond_t));
