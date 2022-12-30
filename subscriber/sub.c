@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
         char buffer[CONTENTS_SIZE];
         parse_message(message, &op_code, buffer, &size);
 
-        printf("%d %s\n", op_code, buffer);
+        fprintf(stdout, "%s\n", message);
     }
 
     return 0;
