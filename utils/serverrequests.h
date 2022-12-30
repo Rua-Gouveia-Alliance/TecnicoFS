@@ -1,16 +1,16 @@
 #ifndef _SERVER_REQUESTS_H
 #define _SERVER_REQUESTS_H
 
-#define CONTENTS_SIZE 1024
-#define PIPE_SIZE 256
+#define MESSAGE_CONTENT_SIZE 1024
+#define PIPE_PATH_SIZE 256
 #define ERROR_SIZE 1024
-#define BOX_SIZE 32
-#define BOX_PATH_SIZE 33
-#define INT_SIZE 3
-#define REQUEST_SIZE INT_SIZE + PIPE_SIZE + BOX_SIZE
-#define MESSAGE_SIZE INT_SIZE + CONTENTS_SIZE
-#define RESPONSE_SIZE 2 * INT_SIZE + ERROR_SIZE
-#define LIST_RESPONSE_SIZE 5 * INT_SIZE + BOX_SIZE
+#define BOX_NAME_SIZE 32
+#define OP_CODE_SIZE sizeof(uint8_t)
+#define REQUEST_SIZE OP_CODE_SIZE + PIPE_PATH_SIZE + BOX_NAME_SIZE
+#define MESSAGE_SIZE OP_CODE_SIZE + MESSAGE_CONTENT_SIZE
+#define RESPONSE_SIZE OP_CODE_SIZE + sizeof(uint32_t) + ERROR_SIZE
+#define LIST_RESPONSE_SIZE                                                     \
+    OP_CODE_SIZE + sizeof(uint8_t) + BOX_NAME_SIZE + 3 * sizeof(uint64_t)
 
 #include <stdlib.h>
 
