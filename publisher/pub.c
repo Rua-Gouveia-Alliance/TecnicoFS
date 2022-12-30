@@ -20,32 +20,24 @@ int main(int argc, char **argv) {
     generate_path(path);
     MK_FIFO(path);
 
-    // Creating the string that will be sent to the server
+    // Creating the string that will be sent to the server and send
     char request[REQUEST_SIZE];
     create_request(request, PUBLISHER, path, box_name);
-
-    // Opening the server FIFO and sending the request
-    int register_fd = open(argv[1], O_WRONLY);
-    ALWAYS_ASSERT(register_fd != -1, "invalid register_pipe");
-    write(register_fd, request, REQUEST_SIZE);
-    close(register_fd);
+    ALWAYS_ASSERT(send_content(argv[1], request, REQUEST_SIZE) != -1,
+                  "critical error sending request to server");
 
     // Reading from stdin and sending it through the fifo
     char buffer[CONTENTS_SIZE];
     for (;;) {
         memset(buffer, '\0', CONTENTS_SIZE);
-
         ssize_t size = read(STDIN_FILENO, buffer, CONTENTS_SIZE);
         buffer[size - 1] = '\0';
 
+        // Create and send message to server
         char message[MESSAGE_SIZE];
         create_message(message, PUBLISHER_MESSAGE, buffer);
-
-        // Opening the FIFO that communicates with the server
-        int fifo_fd = open(path, O_WRONLY);
-        ALWAYS_ASSERT(fifo_fd != -1, "invalid server pipe");
-        write(fifo_fd, message, MESSAGE_SIZE);
-        close(fifo_fd);
+        ALWAYS_ASSERT(send_content(path, request, REQUEST_SIZE) != -1,
+                      "critical error sending request to server");
     }
 
     return 0;

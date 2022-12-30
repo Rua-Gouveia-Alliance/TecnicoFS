@@ -41,8 +41,7 @@ pc_queue_t *pc_queue;
 
 box_t *create_box(char *path) {
     box_t *box = malloc(sizeof(box_t));
-    if (box == NULL)
-        return NULL;
+    ALWAYS_ASSERT(box != NULL, "create_box: out of memory");
 
     // Damos so overwrite ao file de uma box se o nome ja existir , provisorio
     int fd = tfs_open(path, TFS_O_CREAT | TFS_O_TRUNC);
@@ -70,12 +69,13 @@ int box_lookup(char *path) {
 
 int remove_box(char *path) {
     int index = box_lookup(path);
-    if (index != -1) {
-        free(boxes[index]);
-        box_count--;
-        for (int i = index; i < box_count; i++)
-            boxes[i] = boxes[i + 1];
-    }
+    if (index == -1)
+        return -1;
+
+    free(boxes[index]);
+    box_count--;
+    for (int i = index; i < box_count; i++)
+        boxes[i] = boxes[i + 1];
     return index;
 }
 
@@ -109,6 +109,9 @@ int add_box(char *path) {
         ALWAYS_ASSERT(realloc_boxes() == 0, "no memory");
 
     box_t *box = create_box(path);
+    if (box == NULL)
+        return -1;
+
     boxes[box_count++] = box;
     return box_count - 1;
 }
@@ -120,10 +123,8 @@ void publisher_session(char *fifo_path, int id) {
         memset(buffer, '\0', MESSAGE_SIZE);
         memset(contents, '\0', CONTENTS_SIZE);
 
-        // Reading one message from the FIFO
-        int pipe_fd = open(fifo_path, O_RDONLY);
-        read(pipe_fd, buffer, MESSAGE_SIZE);
-        close(pipe_fd);
+        ALWAYS_ASSERT(receive_content(fifo_path, buffer, MESSAGE_SIZE) != -1,
+                      "publisher_session: fifo was deleted");
 
         // Processing the received message
         int op_code;
@@ -169,13 +170,10 @@ void subscriber_session(char *fifo_path, int id) {
             tfs_read(tfs_fd, contents, boxes[id]->messages[message_count]);
         ALWAYS_ASSERT(result != -1, "tfs_read critical error");
 
-        // Creating the message
+        // Creating and sending the message
         create_message(buffer, SUBSCRIBER_MESSAGE, contents);
-
-        // Sending the message through the FIFO
-        int pipe_fd = open(fifo_path, O_WRONLY);
-        write(pipe_fd, buffer, MESSAGE_SIZE);
-        close(pipe_fd);
+        ALWAYS_ASSERT(send_content(fifo_path, buffer, MESSAGE_SIZE) != -1,
+                      "subscriber_session: fifo was deleted");
 
         message_count++;
     }
@@ -203,6 +201,29 @@ void *consumer() {
             if ((id = box_lookup(box_path)) == -1)
                 break; // Esta implemencatacao e so provisoria
             subscriber_session(fifo, id);
+            break;
+        case BOX_CREATION: {
+            char response[RESPONSE_SIZE];
+            if (add_box(box_path) == -1)
+                create_response(response, BOX_CREATION_ANS, -1,
+                                "failed saving box to tfs");
+            else
+                create_response(response, BOX_CREATION_ANS, 0, "");
+            send_content(fifo, response, RESPONSE_SIZE);
+            break;
+        }
+        case BOX_DELETION: {
+            char response[RESPONSE_SIZE];
+            if (remove_box(box_path) == -1)
+                create_response(response, BOX_DELETION_ANS, -1,
+                                "box doesnt exist");
+            else
+                create_response(response, BOX_DELETION_ANS, 0, "");
+            send_content(fifo, response, RESPONSE_SIZE);
+            break;
+        }
+        case BOX_LIST:
+            // TODO
             break;
         default:
             break;
@@ -276,9 +297,8 @@ int main(int argc, char **argv) {
 
     for (;;) {
         char buffer[REQUEST_SIZE];
-        int fifo = open(fifo_path, O_RDONLY);
-        read(fifo, buffer, REQUEST_SIZE);
-        close(fifo);
+        ALWAYS_ASSERT(receive_content(fifo_path, buffer, REQUEST_SIZE) != -1,
+                      "fifo was deleted");
         ALWAYS_ASSERT(pcq_enqueue(pc_queue, buffer) != -1,
                       "producer-consumer critical error");
     }

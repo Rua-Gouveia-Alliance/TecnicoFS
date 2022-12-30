@@ -18,6 +18,28 @@ static void print_usage() {
                     "   manager <register_pipe_name> list\n");
 }
 
+void list_boxes_request(char *request, char *server_fifo, char *fifo) {
+    create_list_request(request, fifo);
+    ALWAYS_ASSERT(send_content(server_fifo, request, REQUEST_SIZE) != -1,
+                  "server fifo critical error");
+
+    char response[RESPONSE_SIZE], box_path[BOX_PATH_SIZE];
+    int op_code, last;
+    size_t box_size, n_publishers, n_subscribers;
+    do {
+        ALWAYS_ASSERT(receive_content(fifo, response, RESPONSE_SIZE) != -1,
+                      "server fifo critical error");
+        parse_list_response(response, &op_code, &last, box_path, &box_size,
+                            &n_publishers, &n_subscribers);
+
+        // TODO: As caixas devem estar ordenadas por ordem alfabética, não sendo
+        // garantido que o servidor as envie por essa ordem (i.e., o cliente
+        // deve ordenar as caixas antes das imprimir).
+        fprintf(stdout, "%s %zu %zu %zu\n", box_path, box_size, n_publishers,
+                n_subscribers);
+    } while (!last);
+}
+
 int main(int argc, char **argv) {
     if (argc < 3) {
         print_usage();
@@ -30,20 +52,35 @@ int main(int argc, char **argv) {
     MK_FIFO(path);
 
     char request[REQUEST_SIZE];
-    if (argc == 4 && !strcmp(argv[2], "create"))
+    int response_opcode;
+    if (argc == 4 && !strcmp(argv[2], "create")) {
         create_request(request, BOX_CREATION, path, argv[3]);
-    else if (argc == 4 && !strcmp(argv[2], "remove"))
+        response_opcode = BOX_CREATION_ANS;
+    } else if (argc == 4 && !strcmp(argv[2], "remove")) {
         create_request(request, BOX_DELETION, path, argv[3]);
-    else if (argc == 3 && !strcmp(argv[2], "list"))
-        create_list_request(request, path);
-    else {
+        response_opcode = BOX_DELETION_ANS;
+    } else if (argc == 3 && !strcmp(argv[2], "list")) {
+        list_boxes_request(request, argv[1], path);
+        return 0;
+    } else {
         print_usage();
         exit(EXIT_FAILURE);
     }
 
-    // Opening the server FIFO and sending the request
-    int register_fd = open(argv[1], O_WRONLY);
-    ALWAYS_ASSERT(register_fd != -1, "invalid register_pipe");
-    write(register_fd, request, REQUEST_SIZE);
-    close(register_fd);
+    ALWAYS_ASSERT(send_content(argv[1], request, REQUEST_SIZE) != -1,
+                  "server fifo critical error");
+
+    char response[RESPONSE_SIZE], error[ERROR_SIZE];
+    int op_code, return_code;
+    ALWAYS_ASSERT(receive_content(path, response, RESPONSE_SIZE) != -1,
+                  "server fifo critical error");
+    parse_response(response, &op_code, &return_code, error);
+
+    ALWAYS_ASSERT(op_code == response_opcode,
+                  "server response doesnt match request");
+    if (return_code == -1) {
+        printf("server error: %s", error);
+        return -1;
+    }
+    return 0;
 }

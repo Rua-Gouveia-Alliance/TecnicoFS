@@ -2,8 +2,10 @@
 #include "betterassert.h"
 #include "clients/opcodes.h"
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 void create_request(char *dest, int op_code, char *session_pipe, char *box) {
 
@@ -133,8 +135,8 @@ void parse_response(char *response, int *op_code, int *return_code,
 }
 
 void parse_list_response(char *response, int *op_code, int *last,
-                         char *box_path, int *box_size, int *n_publishers,
-                         int *n_subscribers) {
+                         char *box_path, size_t *box_size, size_t *n_publishers,
+                         size_t *n_subscribers) {
     errno = 0;
     char *endptr, box_name[BOX_SIZE];
 
@@ -177,4 +179,24 @@ void parse_message(char *message, int *op_code, char *contents,
     // Removing newline character
     size_t size = strlen(contents);
     *buffer_size = size;
+}
+
+int send_content(char *fifo, char *content, size_t size) {
+    int fd = open(fifo, O_WRONLY);
+    if (fd == -1)
+        return -1;
+
+    write(fd, content, size);
+    close(fd);
+    return 0;
+}
+
+int receive_content(char *fifo, char *content, size_t size) {
+    int fd = open(fifo, O_RDONLY);
+    if (fd == -1)
+        return -1;
+
+    read(fd, content, size);
+    close(fd);
+    return 0;
 }

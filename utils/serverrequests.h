@@ -30,10 +30,14 @@ void parse_response(char *response, int *op_code, int *return_code,
                     char *error);
 
 void parse_list_response(char *response, int *op_code, int *last,
-                         char *box_path, int *box_size, int *n_publishers,
-                         int *n_subscribers);
+                         char *box_path, size_t *box_size, size_t *n_publishers,
+                         size_t *n_subscribers);
 
 void parse_message(char *message, int *op_code, char *contents,
                    size_t *contents_size);
+
+int send_content(char *fifo, char *content, size_t size);
+
+int receive_content(char *fifo, char *content, size_t size);
 
 #endif
