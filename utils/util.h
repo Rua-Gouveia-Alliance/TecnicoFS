@@ -1,6 +1,7 @@
 #ifndef __UTIL_H__
 #define __UTIL_H__
 
+#include "operations.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -8,16 +9,17 @@
 
 int equal_files(int tfs_1, int tfs_2) {
     char tfs_1_buffer[BLOCK_SIZE], tfs_2_buffer[BLOCK_SIZE];
-    ssize_t tfs_1_result ,tfs_2_result;
+    ssize_t tfs_1_result, tfs_2_result;
 
     memset(tfs_1_buffer, 0, BLOCK_SIZE);
     memset(tfs_2_buffer, 0, BLOCK_SIZE);
-    while ((tfs_1_result = tfs_read(tfs_1, tfs_1_buffer, BLOCK_SIZE)) != 0 && (tfs_2_result = tfs_read(tfs_2, tfs_2_buffer, BLOCK_SIZE)) != 0) {
+    while ((tfs_1_result = tfs_read(tfs_1, tfs_1_buffer, BLOCK_SIZE)) != 0 &&
+           (tfs_2_result = tfs_read(tfs_2, tfs_2_buffer, BLOCK_SIZE)) != 0) {
 
         if (tfs_1_result == -1 || tfs_2_result == -1)
             return -1;
 
-        if (tfs_1_result != tfs_2_result )
+        if (tfs_1_result != tfs_2_result)
             return -1;
 
         if (strncmp(tfs_1_buffer, tfs_2_buffer, BLOCK_SIZE) != 0)
@@ -63,6 +65,5 @@ int equal_files_local(FILE *local_fs, int tfs) {
 
     return 0;
 }
-
 
 #endif
