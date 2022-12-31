@@ -12,16 +12,19 @@
 #define LIST_RESPONSE_SIZE                                                     \
     OP_CODE_SIZE + sizeof(uint8_t) + BOX_NAME_SIZE + 3 * sizeof(uint64_t)
 
+#include <stdint.h>
 #include <stdlib.h>
 
-void create_request(char *dest, int op_code, char *session_pipe, char *box);
+void create_request(char *dest, uint8_t op_code, char *session_pipe, char *box);
 void create_list_request(char *dest, char *session_pipe);
 
-void create_response(char *dest, int op_code, int return_code, char *error);
-void create_list_response(char *dest, int last, char *box, int box_size,
-                          int n_publishers, int n_subscribers);
+void create_response(char *dest, uint8_t op_code, int32_t return_code,
+                     char *error);
+void create_list_response(char *dest, uint8_t last, char *box,
+                          uint64_t box_size, uint64_t n_publishers,
+                          uint64_t n_subscribers);
 
-void create_message(char *dest, int op_code, char *message);
+void create_message(char *dest, uint8_t op_code, char *message);
 
 void parse_request(char *request, int *op_code, char *session_pipe,
                    char *box_path);
