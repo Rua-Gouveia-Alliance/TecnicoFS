@@ -4,6 +4,7 @@
 #define MESSAGE_CONTENT_SIZE 1024
 #define PIPE_PATH_SIZE 256
 #define ERROR_SIZE 1024
+#define BOX_PATH_SIZE 33
 #define BOX_NAME_SIZE 32
 #define OP_CODE_SIZE sizeof(uint8_t)
 #define REQUEST_SIZE OP_CODE_SIZE + PIPE_PATH_SIZE + BOX_NAME_SIZE
@@ -33,7 +34,7 @@ void parse_response(char *response, int *op_code, int *return_code,
                     char *error);
 
 void parse_list_response(char *response, int *op_code, int *last,
-                         char *box_path, size_t *box_size, size_t *n_publishers,
+                         char *box_name, size_t *box_size, size_t *n_publishers,
                          size_t *n_subscribers);
 
 void parse_message(char *message, int *op_code, char *contents,

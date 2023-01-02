@@ -62,7 +62,7 @@ box_t *create_box(char *path) {
 
 int box_lookup(char *path) {
     for (int i = 0; i < box_count; i++)
-        if (strncmp(path, boxes[i]->path, BOX_SIZE) == 0)
+        if (strncmp(path, boxes[i]->path, BOX_PATH_SIZE) == 0)
             return i;
     return -1;
 }
@@ -116,12 +116,31 @@ int add_box(char *path) {
     return box_count - 1;
 }
 
+void box_creation_session(char *box_path) {
+    char response[RESPONSE_SIZE];
+    if (add_box(box_path) == -1)
+        create_response(response, BOX_CREATION_ANS, -1,
+                        "failed saving box to tfs");
+    else
+        create_response(response, BOX_CREATION_ANS, 0, "");
+    send_content(fifo, response, RESPONSE_SIZE);
+}
+
+void box_deletion_session(char *box_path) {
+    char response[RESPONSE_SIZE];
+    if (remove_box(box_path) == -1)
+        create_response(response, BOX_DELETION_ANS, -1, "box doesnt exist");
+    else
+        create_response(response, BOX_DELETION_ANS, 0, "");
+    send_content(fifo, response, RESPONSE_SIZE);
+}
+
 void publisher_session(char *fifo_path, int id) {
     char buffer[MESSAGE_SIZE];
-    char contents[CONTENTS_SIZE];
+    char contents[MESSAGE_CONTENT_SIZE];
     for (;;) {
         memset(buffer, '\0', MESSAGE_SIZE);
-        memset(contents, '\0', CONTENTS_SIZE);
+        memset(contents, '\0', MESSAGE_CONTENT_SIZE);
 
         ALWAYS_ASSERT(receive_content(fifo_path, buffer, MESSAGE_SIZE) != -1,
                       "publisher_session: fifo was deleted");
@@ -134,8 +153,8 @@ void publisher_session(char *fifo_path, int id) {
         // Writing the contents to tfs
         int tfs_fd = tfs_open(boxes[id]->path, TFS_O_APPEND);
         ssize_t written_size = tfs_write(tfs_fd, contents, message_size);
-        ALWAYS_ASSERT(written_size != -1, "tfs_write critical error");
         tfs_close(tfs_fd);
+        ALWAYS_ASSERT(written_size != -1, "tfs_write critical error");
 
         // Updating the box
         boxes[id]->messages[boxes[id]->message_count] = (size_t)written_size;
@@ -153,10 +172,10 @@ void subscriber_session(char *fifo_path, int id) {
     int tfs_fd = tfs_open(boxes[id]->path, TFS_O_CREAT);
 
     char buffer[MESSAGE_SIZE];
-    char contents[CONTENTS_SIZE];
+    char contents[MESSAGE_CONTENT_SIZE];
     for (;;) {
         memset(buffer, '\0', MESSAGE_SIZE);
-        memset(contents, '\0', CONTENTS_SIZE);
+        memset(contents, '\0', MESSAGE_CONTENT_SIZE);
 
         MUTEX_LOCK(box_mutex + id);
 
@@ -185,8 +204,10 @@ void *consumer() {
         char *request = (char *)pcq_dequeue(pc_queue);
         ALWAYS_ASSERT(request != NULL, "producer-consumer critical error");
         int op_code;
-        char fifo[PIPE_SIZE], box_path[BOX_PATH_SIZE];
-        parse_request(request, &op_code, fifo, box_path);
+        char fifo[PIPE_PATH_SIZE], box_name[BOX_NAME_SIZE],
+            box_path[BOX_PATH_SIZE];
+        parse_request(request, &op_code, fifo, box_name);
+        snprintf(box_path, BOX_PATH_SIZE, "/%s", box_name);
 
         int id;
         switch (op_code) {
@@ -197,29 +218,17 @@ void *consumer() {
             publisher_session(fifo, id);
             break;
         case SUBSCRIBER:
-            // If the box doesnt exist, reject the subscribers
+            // If the box doesnt exist, reject the subscriber
             if ((id = box_lookup(box_path)) == -1)
                 break; // Esta implemencatacao e so provisoria
             subscriber_session(fifo, id);
             break;
         case BOX_CREATION: {
-            char response[RESPONSE_SIZE];
-            if (add_box(box_path) == -1)
-                create_response(response, BOX_CREATION_ANS, -1,
-                                "failed saving box to tfs");
-            else
-                create_response(response, BOX_CREATION_ANS, 0, "");
-            send_content(fifo, response, RESPONSE_SIZE);
+            box_creation_session(box_path);
             break;
         }
         case BOX_DELETION: {
-            char response[RESPONSE_SIZE];
-            if (remove_box(box_path) == -1)
-                create_response(response, BOX_DELETION_ANS, -1,
-                                "box doesnt exist");
-            else
-                create_response(response, BOX_DELETION_ANS, 0, "");
-            send_content(fifo, response, RESPONSE_SIZE);
+            box_deletion_session(box_path);
             break;
         }
         case BOX_LIST:

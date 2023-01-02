@@ -13,10 +13,10 @@
 int main(int argc, char **argv) {
     ALWAYS_ASSERT(argc == 3, "usage: pub <register_pipe> <box_name>\n");
     char *box_name = argv[2];
-    ALWAYS_ASSERT(strlen(box_name) < BOX_SIZE, "invalid box name\n");
+    ALWAYS_ASSERT(strlen(box_name) < BOX_NAME_SIZE, "invalid box name\n");
 
     // Creating the FIFO
-    char path[PIPE_SIZE];
+    char path[PIPE_PATH_SIZE];
     generate_path(path);
     MK_FIFO(path);
 
@@ -27,10 +27,10 @@ int main(int argc, char **argv) {
                   "critical error sending request to server");
 
     // Reading from stdin and sending it through the fifo
-    char buffer[CONTENTS_SIZE];
+    char buffer[MESSAGE_CONTENT_SIZE];
     for (;;) {
-        memset(buffer, '\0', CONTENTS_SIZE);
-        ssize_t size = read(STDIN_FILENO, buffer, CONTENTS_SIZE);
+        memset(buffer, '\0', MESSAGE_CONTENT_SIZE);
+        ssize_t size = read(STDIN_FILENO, buffer, MESSAGE_CONTENT_SIZE);
         buffer[size - 1] = '\0';
 
         // Create and send message to server

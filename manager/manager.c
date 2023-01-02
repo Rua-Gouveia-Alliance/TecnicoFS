@@ -18,24 +18,28 @@ static void print_usage() {
                     "   manager <register_pipe_name> list\n");
 }
 
+int comparator(const void *a, const void *b) {
+    return strcmp((char *)a, (char *)b) > 0;
+}
+
 void list_boxes_request(char *request, char *server_fifo, char *fifo) {
     create_list_request(request, fifo);
     ALWAYS_ASSERT(send_content(server_fifo, request, REQUEST_SIZE) != -1,
                   "server fifo critical error");
 
-    char response[RESPONSE_SIZE], box_path[BOX_PATH_SIZE];
+    char response[RESPONSE_SIZE], box_name[BOX_NAME_SIZE];
     int op_code, last;
     size_t box_size, n_publishers, n_subscribers;
     do {
         ALWAYS_ASSERT(receive_content(fifo, response, RESPONSE_SIZE) != -1,
                       "server fifo critical error");
-        parse_list_response(response, &op_code, &last, box_path, &box_size,
+        parse_list_response(response, &op_code, &last, box_name, &box_size,
                             &n_publishers, &n_subscribers);
 
         // TODO: As caixas devem estar ordenadas por ordem alfabética, não sendo
         // garantido que o servidor as envie por essa ordem (i.e., o cliente
         // deve ordenar as caixas antes das imprimir).
-        fprintf(stdout, "%s %zu %zu %zu\n", box_path, box_size, n_publishers,
+        fprintf(stdout, "%s %zu %zu %zu\n", box_name, box_size, n_publishers,
                 n_subscribers);
     } while (!last);
 }

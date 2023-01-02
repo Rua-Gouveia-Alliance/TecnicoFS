@@ -13,7 +13,7 @@
 int main(int argc, char **argv) {
     ALWAYS_ASSERT(argc == 3, "usage: sub <register_pipe> <box_name>\n");
     char *box_name = argv[2];
-    ALWAYS_ASSERT(strlen(box_name) < BOX_SIZE, "invalid box name\n");
+    ALWAYS_ASSERT(strlen(box_name) < BOX_NAME_SIZE, "invalid box name\n");
 
     // Creating the FIFO
     char path[PIPE_SIZE];
@@ -36,7 +36,7 @@ int main(int argc, char **argv) {
         // Printing the received message
         int op_code;
         size_t size;
-        char buffer[CONTENTS_SIZE];
+        char buffer[MESSAGE_CONTENT_SIZE];
         parse_message(message, &op_code, buffer, &size);
 
         fprintf(stdout, "%s\n", message);
