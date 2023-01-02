@@ -167,10 +167,10 @@ void publisher_session(char *fifo_path, int id) {
 }
 
 void subscriber_session(char *fifo_path, int id) {
-    size_t message_count = 0;
     // Nao quero criar mas tmb nao ha tfs RDONLY, so provisorio
     int tfs_fd = tfs_open(boxes[id]->path, TFS_O_CREAT);
-
+    
+    size_t message_count = 0;
     char buffer[MESSAGE_SIZE];
     char contents[MESSAGE_CONTENT_SIZE];
     for (;;) {

@@ -57,8 +57,7 @@ void parse_request(void *request, int *op_code, char *session_pipe,
 
     memcpy(session_pipe, request + OP_CODE_SIZE, PIPE_PATH_SIZE);
 
-    memcpy(box_name, request + OP_CODE_SIZE + PIPE_PATH_SIZE,
-           BOX_NAME_SIZE);
+    memcpy(box_name, request + OP_CODE_SIZE + PIPE_PATH_SIZE, BOX_NAME_SIZE);
 }
 
 void parse_response(void *response, int *op_code, int *return_code,
@@ -88,7 +87,7 @@ void parse_message(void *message, int *op_code, char *contents,
 
     memcpy(contents, message + OP_CODE_SIZE, MESSAGE_CONTENT_SIZE);
 
-    *buffer_size = strlen(contents);
+    *buffer_size = strlen(contents) + 1;
 }
 
 int send_content(char *fifo, void *content, size_t size) {
