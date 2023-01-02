@@ -116,23 +116,23 @@ int add_box(char *path) {
     return box_count - 1;
 }
 
-void box_creation_session(char *box_path) {
+void box_creation_session(char* fifo_path, char *box_path) {
     char response[RESPONSE_SIZE];
     if (add_box(box_path) == -1)
         create_response(response, BOX_CREATION_ANS, -1,
                         "failed saving box to tfs");
     else
         create_response(response, BOX_CREATION_ANS, 0, "");
-    send_content(fifo, response, RESPONSE_SIZE);
+    send_content(fifo_path, response, RESPONSE_SIZE);
 }
 
-void box_deletion_session(char *box_path) {
+void box_deletion_session(char* fifo_path, char *box_path) {
     char response[RESPONSE_SIZE];
     if (remove_box(box_path) == -1)
         create_response(response, BOX_DELETION_ANS, -1, "box doesnt exist");
     else
         create_response(response, BOX_DELETION_ANS, 0, "");
-    send_content(fifo, response, RESPONSE_SIZE);
+    send_content(fifo_path, response, RESPONSE_SIZE);
 }
 
 void publisher_session(char *fifo_path, int id) {
@@ -204,9 +204,10 @@ void *consumer() {
         char *request = (char *)pcq_dequeue(pc_queue);
         ALWAYS_ASSERT(request != NULL, "producer-consumer critical error");
         int op_code;
-        char fifo[PIPE_PATH_SIZE], box_name[BOX_NAME_SIZE],
-            box_path[BOX_PATH_SIZE];
+        char fifo[PIPE_PATH_SIZE], box_name[BOX_NAME_SIZE];
         parse_request(request, &op_code, fifo, box_name);
+
+        char box_path[BOX_PATH_SIZE];
         snprintf(box_path, BOX_PATH_SIZE, "/%s", box_name);
 
         int id;
@@ -224,11 +225,11 @@ void *consumer() {
             subscriber_session(fifo, id);
             break;
         case BOX_CREATION: {
-            box_creation_session(box_path);
+            box_creation_session(fifo, box_path);
             break;
         }
         case BOX_DELETION: {
-            box_deletion_session(box_path);
+            box_deletion_session(fifo, box_path);
             break;
         }
         case BOX_LIST:

@@ -16,32 +16,32 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-void create_request(char *dest, uint8_t op_code, char *session_pipe, char *box);
-void create_list_request(char *dest, char *session_pipe);
+void create_request(void *dest, uint8_t op_code, char *session_pipe, char *box);
+void create_list_request(void *dest, char *session_pipe);
 
-void create_response(char *dest, uint8_t op_code, int32_t return_code,
+void create_response(void *dest, uint8_t op_code, int32_t return_code,
                      char *error);
-void create_list_response(char *dest, uint8_t last, char *box,
+void create_list_response(void *dest, uint8_t last, char *box,
                           uint64_t box_size, uint64_t n_publishers,
                           uint64_t n_subscribers);
 
-void create_message(char *dest, uint8_t op_code, char *message);
+void create_message(void *dest, uint8_t op_code, char *message);
 
-void parse_request(char *request, int *op_code, char *session_pipe,
+void parse_request(void *request, int *op_code, char *session_pipe,
                    char *box_path);
 
-void parse_response(char *response, int *op_code, int *return_code,
+void parse_response(void *response, int *op_code, int *return_code,
                     char *error);
 
-void parse_list_response(char *response, int *op_code, int *last,
+void parse_list_response(void *response, int *op_code, int *last,
                          char *box_name, size_t *box_size, size_t *n_publishers,
                          size_t *n_subscribers);
 
-void parse_message(char *message, int *op_code, char *contents,
+void parse_message(void *message, int *op_code, char *contents,
                    size_t *contents_size);
 
-int send_content(char *fifo, char *content, size_t size);
+int send_content(char *fifo, void *content, size_t size);
 
-int receive_content(char *fifo, char *content, size_t size);
+int receive_content(char *fifo, void *content, size_t size);
 
 #endif

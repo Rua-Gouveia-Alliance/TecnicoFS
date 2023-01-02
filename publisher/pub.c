@@ -10,6 +10,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <stdint.h>
+
 int main(int argc, char **argv) {
     ALWAYS_ASSERT(argc == 3, "usage: pub <register_pipe> <box_name>\n");
     char *box_name = argv[2];
@@ -29,15 +31,16 @@ int main(int argc, char **argv) {
     // Reading from stdin and sending it through the fifo
     char buffer[MESSAGE_CONTENT_SIZE];
     for (;;) {
-        memset(buffer, '\0', MESSAGE_CONTENT_SIZE);
-        ssize_t size = read(STDIN_FILENO, buffer, MESSAGE_CONTENT_SIZE);
-        buffer[size - 1] = '\0';
+        ssize_t read_result = read(STDIN_FILENO, buffer, MESSAGE_CONTENT_SIZE);
+        ALWAYS_ASSERT(read_result > 0, "read failure");
+        size_t size = (size_t)read_result - 1;
+        memset(buffer + size, '\0', MESSAGE_CONTENT_SIZE - size);
 
         // Create and send message to server
         char message[MESSAGE_SIZE];
         create_message(message, PUBLISHER_MESSAGE, buffer);
-        ALWAYS_ASSERT(send_content(path, request, REQUEST_SIZE) != -1,
-                      "critical error sending request to server");
+        ALWAYS_ASSERT(send_content(path, message, MESSAGE_SIZE) != -1,
+                      "critical error sending message to server");
     }
 
     return 0;

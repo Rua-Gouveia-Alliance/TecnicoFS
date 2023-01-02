@@ -23,7 +23,9 @@ int comparator(const void *a, const void *b) {
 }
 
 void list_boxes_request(char *request, char *server_fifo, char *fifo) {
-    create_list_request(request, fifo);
+    char box[BOX_NAME_SIZE];
+    memset(box, '\0', BOX_NAME_SIZE);
+    create_request(request, BOX_LIST, fifo, box);
     ALWAYS_ASSERT(send_content(server_fifo, request, REQUEST_SIZE) != -1,
                   "server fifo critical error");
 
@@ -51,7 +53,7 @@ int main(int argc, char **argv) {
     }
 
     // Creating the FIFO
-    char path[PIPE_SIZE];
+    char path[PIPE_PATH_SIZE];
     generate_path(path);
     MK_FIFO(path);
 

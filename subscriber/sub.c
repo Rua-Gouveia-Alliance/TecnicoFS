@@ -16,20 +16,20 @@ int main(int argc, char **argv) {
     ALWAYS_ASSERT(strlen(box_name) < BOX_NAME_SIZE, "invalid box name\n");
 
     // Creating the FIFO
-    char path[PIPE_SIZE];
+    char path[PIPE_PATH_SIZE];
     generate_path(path);
     MK_FIFO(path);
 
     // Creating the string that will be sent to the server and send it
     char request[REQUEST_SIZE];
     create_request(request, SUBSCRIBER, path, box_name);
-    ALWAYS_ASSERT(receive_content(argv[1], request, REQUEST_SIZE),
+    ALWAYS_ASSERT(send_content(argv[1], request, REQUEST_SIZE) != -1,
                   "critical error sending request");
 
     // Reading to stdout what is sent through the FIFO
     char message[MESSAGE_SIZE];
     for (;;) {
-        memset(message, '\0', CONTENTS_SIZE);
+        memset(message, '\0', MESSAGE_CONTENT_SIZE);
         ALWAYS_ASSERT(receive_content(path, message, MESSAGE_SIZE) != -1,
                       "critical error receiving message");
 
@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
         char buffer[MESSAGE_CONTENT_SIZE];
         parse_message(message, &op_code, buffer, &size);
 
-        fprintf(stdout, "%s\n", message);
+        fprintf(stdout, "%s\n", buffer);
     }
 
     return 0;
