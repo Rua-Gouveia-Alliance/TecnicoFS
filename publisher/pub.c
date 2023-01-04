@@ -1,8 +1,8 @@
-#include "betterassert.h"
-#include "betterpipes.h"
-#include "generatepath.h"
-#include "opcodes.h"
-#include "serverrequests.h"
+#include "../clients/opcodes.h"
+#include "../utils/betterassert.h"
+#include "../utils/betterpipes.h"
+#include "../utils/generatepath.h"
+#include "../utils/serverrequests.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <string.h>
@@ -31,14 +31,14 @@ int main(int argc, char **argv) {
     for (;;) {
         memset(buffer, '\0', MESSAGE_CONTENT_SIZE);
         ssize_t read_result = read(STDIN_FILENO, buffer, MESSAGE_CONTENT_SIZE);
-        
+
         // Provisorio
         if (read_result < 1)
             break;
 
         // Removing newline
         size_t size = (size_t)read_result;
-        buffer[size-1] = '\0';
+        buffer[size - 1] = '\0';
 
         // Create and send message to server
         char message[MESSAGE_SIZE];
@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
         ALWAYS_ASSERT(send_content(path, message, MESSAGE_SIZE) != -1,
                       "critical error sending message to server");
     }
-    
+
     unlink(path);
 
     return 0;

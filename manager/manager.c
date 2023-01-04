@@ -1,13 +1,12 @@
-#include "betterpipes.h"
-#include "clients/opcodes.h"
-#include "generatepath.h"
-#include "logging.h"
-#include "serverrequests.h"
-#include "string.h"
+#include "../clients/opcodes.h"
+#include "../utils/betterpipes.h"
+#include "../utils/generatepath.h"
+#include "../utils/serverrequests.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
 

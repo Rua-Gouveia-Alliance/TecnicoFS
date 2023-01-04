@@ -1,6 +1,6 @@
 #include "serverrequests.h"
+#include "../clients/opcodes.h"
 #include "betterassert.h"
-#include "clients/opcodes.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>

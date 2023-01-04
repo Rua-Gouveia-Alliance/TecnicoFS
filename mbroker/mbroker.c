@@ -1,11 +1,11 @@
-#include "betterassert.h"
-#include "betterlocks.h"
-#include "betterpipes.h"
-#include "betterthreads.h"
-#include "opcodes.h"
-#include "operations.h"
-#include "producer-consumer.h"
-#include "serverrequests.h"
+#include "../clients/opcodes.h"
+#include "../fs/operations.h"
+#include "../producer-consumer/producer-consumer.h"
+#include "../utils/betterassert.h"
+#include "../utils/betterlocks.h"
+#include "../utils/betterpipes.h"
+#include "../utils/betterthreads.h"
+#include "../utils/serverrequests.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -116,7 +116,7 @@ int add_box(char *path) {
     return box_count - 1;
 }
 
-void box_creation_session(char* fifo_path, char *box_path) {
+void box_creation_session(char *fifo_path, char *box_path) {
     char response[RESPONSE_SIZE];
     if (add_box(box_path) == -1)
         create_response(response, BOX_CREATION_ANS, -1,
@@ -126,7 +126,7 @@ void box_creation_session(char* fifo_path, char *box_path) {
     send_content(fifo_path, response, RESPONSE_SIZE);
 }
 
-void box_deletion_session(char* fifo_path, char *box_path) {
+void box_deletion_session(char *fifo_path, char *box_path) {
     char response[RESPONSE_SIZE];
     if (remove_box(box_path) == -1)
         create_response(response, BOX_DELETION_ANS, -1, "box doesnt exist");
@@ -169,7 +169,7 @@ void publisher_session(char *fifo_path, int id) {
 void subscriber_session(char *fifo_path, int id) {
     // Nao quero criar mas tmb nao ha tfs RDONLY, so provisorio
     int tfs_fd = tfs_open(boxes[id]->path, TFS_O_CREAT);
-    
+
     size_t message_count = 0;
     char buffer[MESSAGE_SIZE];
     char contents[MESSAGE_CONTENT_SIZE];
