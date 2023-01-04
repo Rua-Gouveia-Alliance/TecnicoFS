@@ -26,10 +26,10 @@
 typedef struct {
     char path[BOX_PATH_SIZE];
     size_t messages[MAX_MESSAGES];
-    size_t message_count;
-    size_t n_publishers;
-    size_t n_subscribers;
-    size_t size;
+    int64_t message_count;
+    int64_t n_publishers;
+    int64_t n_subscribers;
+    int64_t size;
 } box_t;
 
 box_t **boxes;
@@ -171,7 +171,7 @@ void publisher_session(char *fifo_path, int id) {
 
         // Updating the box
         boxes[id]->messages[boxes[id]->message_count] = (size_t)written_size;
-        boxes[id]->size += (size_t)written_size;
+        boxes[id]->size += (int64_t)written_size;
         boxes[id]->message_count++;
 
         // Notifying all subscribers
@@ -189,7 +189,7 @@ void subscriber_session(char *fifo_path, int id) {
 
     boxes[id]->n_subscribers++;
 
-    size_t m_count = 0;
+    int64_t m_count = 0;
     char buffer[MESSAGE_SIZE];
     char contents[MESSAGE_CONTENT_SIZE];
     for (;;) {
