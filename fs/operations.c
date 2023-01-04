@@ -9,8 +9,8 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "betterassert.h"
-#include "betterlocks.h"
+#include "../utils/betterassert.h"
+#include "../utils/betterlocks.h"
 
 static pthread_mutex_t file_exists_mutex;
 
