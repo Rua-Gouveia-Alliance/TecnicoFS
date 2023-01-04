@@ -138,23 +138,34 @@ void box_deletion_session(char *fifo_path, char *box_path) {
 void publisher_session(char *fifo_path, int id) {
     char buffer[MESSAGE_SIZE];
     char contents[MESSAGE_CONTENT_SIZE];
+
+    boxes[id]->n_publishers++;
+
     for (;;) {
         memset(buffer, '\0', MESSAGE_SIZE);
         memset(contents, '\0', MESSAGE_CONTENT_SIZE);
 
-        ALWAYS_ASSERT(receive_content(fifo_path, buffer, MESSAGE_SIZE) != -1,
-                      "publisher_session: fifo was deleted");
+        // If the pipe has been closed the session ends
+        if (receive_content(fifo_path, buffer, MESSAGE_SIZE) == -1)
+            break;
 
         // Processing the received message
         int op_code;
         size_t message_size;
         parse_message(buffer, &op_code, contents, &message_size);
 
-        // Writing the contents to tfs
+        // If the box has been deleted the session ends
         int tfs_fd = tfs_open(boxes[id]->path, TFS_O_APPEND);
+        if (tfs_fd == -1)
+            break;
+
+        // Writing the contents to tfs
         ssize_t written_size = tfs_write(tfs_fd, contents, message_size);
         tfs_close(tfs_fd);
-        ALWAYS_ASSERT(written_size != -1, "tfs_write critical error");
+
+        // If writing to the box fails its because its been deleted
+        if (written_size == -1)
+            break;
 
         // Updating the box
         boxes[id]->messages[boxes[id]->message_count] = (size_t)written_size;
@@ -164,13 +175,19 @@ void publisher_session(char *fifo_path, int id) {
         // Notifying all subscribers
         pthread_cond_broadcast(box_cond + id);
     }
+
+    boxes[id]->n_publishers--;
 }
 
 void subscriber_session(char *fifo_path, int id) {
     // Nao quero criar mas tmb nao ha tfs RDONLY, so provisorio
     int tfs_fd = tfs_open(boxes[id]->path, TFS_O_CREAT);
+    if (tfs_fd == -1)
+        return;
 
-    size_t message_count = 0;
+    boxes[id]->n_subscribers++;
+
+    size_t m_count = 0;
     char buffer[MESSAGE_SIZE];
     char contents[MESSAGE_CONTENT_SIZE];
     for (;;) {
@@ -179,24 +196,27 @@ void subscriber_session(char *fifo_path, int id) {
 
         MUTEX_LOCK(box_mutex + id);
 
-        while (message_count == boxes[id]->message_count)
+        while (m_count == boxes[id]->message_count)
             pthread_cond_wait(box_cond + id, box_mutex + id);
 
         MUTEX_UNLOCK(box_mutex + id);
 
-        // Reading one message's contents from tfs
-        ssize_t result =
-            tfs_read(tfs_fd, contents, boxes[id]->messages[message_count]);
-        ALWAYS_ASSERT(result != -1, "tfs_read critical error");
+        // If reading from the box fails its because its been deleted
+        if (tfs_read(tfs_fd, contents, boxes[id]->messages[m_count]) == -1)
+            break;
 
         // Creating and sending the message
         create_message(buffer, SUBSCRIBER_MESSAGE, contents);
-        ALWAYS_ASSERT(send_content(fifo_path, buffer, MESSAGE_SIZE) != -1,
-                      "subscriber_session: fifo was deleted");
 
-        message_count++;
+        // If the pipe has been closed the session ends
+        if (send_content(fifo_path, buffer, MESSAGE_SIZE) == -1)
+            break;
+
+        m_count++;
     }
+
     tfs_close(tfs_fd);
+    boxes[id]->n_subscribers--;
 }
 
 void *consumer() {
@@ -302,8 +322,6 @@ int main(int argc, char **argv) {
 
     pthread_t threads[sessions];
     server_init(argv[1], threads, sessions);
-
-    add_box("/hello_world");
 
     for (;;) {
         char buffer[REQUEST_SIZE];
