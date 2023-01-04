@@ -17,6 +17,7 @@ char path[PIPE_PATH_SIZE];
 void handle_sigint() {
     fprintf(stdout, "\n%lu\n", m_count);
     unlink(path);
+    exit(0);
 }
 
 int main(int argc, char **argv) {

@@ -13,7 +13,10 @@
 
 char path[PIPE_PATH_SIZE];
 
-void handle_sigint() { unlink(path); }
+void handle_sigint() {
+    unlink(path);
+    exit(0);
+}
 
 int main(int argc, char **argv) {
     ALWAYS_ASSERT(argc == 3, "usage: pub <register_pipe> <box_name>\n");
