@@ -118,20 +118,22 @@ int add_box(char *path) {
 
 void box_creation_session(char *fifo_path, char *box_path) {
     char response[RESPONSE_SIZE];
-    if (add_box(box_path) == -1)
+    if (add_box(box_path) == -1) {
         create_response(response, BOX_CREATION_ANS, -1,
                         "failed saving box to tfs");
-    else
+    } else {
         create_response(response, BOX_CREATION_ANS, 0, "");
+    }
     send_content(fifo_path, response, RESPONSE_SIZE);
 }
 
 void box_deletion_session(char *fifo_path, char *box_path) {
     char response[RESPONSE_SIZE];
-    if (remove_box(box_path) == -1)
+    if (remove_box(box_path) == -1) {
         create_response(response, BOX_DELETION_ANS, -1, "box doesnt exist");
-    else
+    } else {
         create_response(response, BOX_DELETION_ANS, 0, "");
+    }
     send_content(fifo_path, response, RESPONSE_SIZE);
 }
 
@@ -150,9 +152,8 @@ void publisher_session(char *fifo_path, int id) {
             break;
 
         // Processing the received message
-        int op_code;
-        size_t message_size;
-        parse_message(buffer, &op_code, contents, &message_size);
+        uint8_t op_code;
+        parse_message(buffer, &op_code, contents);
 
         // If the box has been deleted the session ends
         int tfs_fd = tfs_open(boxes[id]->path, TFS_O_APPEND);
@@ -160,6 +161,7 @@ void publisher_session(char *fifo_path, int id) {
             break;
 
         // Writing the contents to tfs
+        size_t message_size = strlen(contents);
         ssize_t written_size = tfs_write(tfs_fd, contents, message_size);
         tfs_close(tfs_fd);
 
@@ -223,7 +225,7 @@ void *consumer() {
     for (;;) {
         char *request = (char *)pcq_dequeue(pc_queue);
         ALWAYS_ASSERT(request != NULL, "producer-consumer critical error");
-        int op_code;
+        uint8_t op_code;
         char fifo[PIPE_PATH_SIZE], box_name[BOX_NAME_SIZE];
         parse_request(request, &op_code, fifo, box_name);
 

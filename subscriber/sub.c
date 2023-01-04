@@ -1,3 +1,4 @@
+#include "../clients/messages.h"
 #include "../clients/opcodes.h"
 #include "../utils/betterassert.h"
 #include "../utils/betterpipes.h"
@@ -14,10 +15,12 @@
 size_t m_count = 0;
 char path[PIPE_PATH_SIZE];
 
-void handle_sigint() {
+void finish_subscriber(int sig) {
     fprintf(stdout, "\n%lu\n", m_count);
     unlink(path);
-    exit(0);
+    if (sig == SIGINT)
+        exit(EXIT_SUCCESS);
+    exit(sig);
 }
 
 int main(int argc, char **argv) {
@@ -27,7 +30,7 @@ int main(int argc, char **argv) {
 
     // Setting up SIGINT handling
     struct sigaction act;
-    act.sa_handler = &handle_sigint;
+    act.sa_handler = &finish_subscriber;
     sigaction(SIGINT, &act, NULL);
 
     // Creating the FIFO
@@ -37,25 +40,33 @@ int main(int argc, char **argv) {
     // Creating the string that will be sent to the server and send it
     char request[REQUEST_SIZE];
     create_request(request, SUBSCRIBER, path, box_name);
-    ALWAYS_ASSERT(send_content(argv[1], request, REQUEST_SIZE) != -1,
-                  "critical error sending request");
+    if (send_content(argv[1], request, REQUEST_SIZE) == -1) {
+        fprintf(stdout, "%s\n", SERVER_ERROR);
+        finish_subscriber(EXIT_FAILURE);
+    }
 
     // Reading to stdout what is sent through the FIFO
     char message[MESSAGE_SIZE];
     for (;;) {
         memset(message, '\0', MESSAGE_CONTENT_SIZE);
-        ALWAYS_ASSERT(receive_content(path, message, MESSAGE_SIZE) != -1,
-                      "critical error receiving message");
+        if (receive_content(path, message, MESSAGE_SIZE) == -1)
+            break;
 
         // Printing the received message
-        int op_code;
-        size_t size;
+        uint8_t op_code;
         char buffer[MESSAGE_CONTENT_SIZE];
-        parse_message(message, &op_code, buffer, &size);
+        parse_message(message, &op_code, buffer);
+
+        if (op_code != SUBSCRIBER_MESSAGE) {
+            fprintf(stdout, "%s\n", OP_CODE_DIFF);
+            finish_subscriber(EXIT_FAILURE);
+        }
 
         fprintf(stdout, "%s\n", buffer);
         m_count++;
     }
+
+    finish_subscriber(EXIT_SUCCESS);
 
     return 0;
 }

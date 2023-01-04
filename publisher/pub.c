@@ -1,3 +1,4 @@
+#include "../clients/messages.h"
 #include "../clients/opcodes.h"
 #include "../utils/betterassert.h"
 #include "../utils/betterpipes.h"
@@ -13,9 +14,11 @@
 
 char path[PIPE_PATH_SIZE];
 
-void handle_sigint() {
+void finish_publisher(int sig) {
     unlink(path);
-    exit(0);
+    if (sig == SIGINT)
+        exit(EXIT_SUCCESS);
+    exit(sig);
 }
 
 int main(int argc, char **argv) {
@@ -25,7 +28,7 @@ int main(int argc, char **argv) {
 
     // Setting up SIGINT handling
     struct sigaction act;
-    act.sa_handler = &handle_sigint;
+    act.sa_handler = &finish_publisher;
     sigaction(SIGINT, &act, NULL);
 
     // Creating the FIFO
@@ -35,8 +38,10 @@ int main(int argc, char **argv) {
     // Creating the string that will be sent to the server and send
     char request[REQUEST_SIZE];
     create_request(request, PUBLISHER, path, box_name);
-    ALWAYS_ASSERT(send_content(argv[1], request, REQUEST_SIZE) != -1,
-                  "critical error sending request to server");
+    if (send_content(argv[1], request, REQUEST_SIZE) == -1) {
+        fprintf(stdout, "invalid register pipe name");
+        finish_publisher(EXIT_FAILURE);
+    }
 
     // Reading from stdin and sending it through the fifo
     char buffer[MESSAGE_CONTENT_SIZE];
@@ -44,7 +49,6 @@ int main(int argc, char **argv) {
         memset(buffer, '\0', MESSAGE_CONTENT_SIZE);
         ssize_t read_result = read(STDIN_FILENO, buffer, MESSAGE_CONTENT_SIZE);
 
-        // Provisorio
         if (read_result < 1)
             break;
 
@@ -52,14 +56,16 @@ int main(int argc, char **argv) {
         size_t size = (size_t)read_result;
         buffer[size - 1] = '\0';
 
-        // Create and send message to server
+        // Create and sending message to server
         char message[MESSAGE_SIZE];
         create_message(message, PUBLISHER_MESSAGE, buffer);
-        ALWAYS_ASSERT(send_content(path, message, MESSAGE_SIZE) != -1,
-                      "critical error sending message to server");
+        if (send_content(path, message, MESSAGE_SIZE) == -1) {
+            fprintf(stdout, "%s\n", SERVER_ERROR);
+            finish_publisher(EXIT_SUCCESS);
+        }
     }
 
-    unlink(path);
+    finish_publisher(EXIT_SUCCESS);
 
     return 0;
 }
