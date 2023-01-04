@@ -5,18 +5,27 @@
 #include "../utils/serverrequests.h"
 #include <errno.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+char path[PIPE_PATH_SIZE];
+
+void handle_sigint() { unlink(path); }
 
 int main(int argc, char **argv) {
     ALWAYS_ASSERT(argc == 3, "usage: pub <register_pipe> <box_name>\n");
     char *box_name = argv[2];
     ALWAYS_ASSERT(strlen(box_name) < BOX_NAME_SIZE, "invalid box name\n");
 
+    // Setting up SIGINT handling
+    struct sigaction act;
+    act.sa_handler = &handle_sigint;
+    sigaction(SIGINT, &act, NULL);
+
     // Creating the FIFO
-    char path[PIPE_PATH_SIZE];
     generate_path(path);
     MK_FIFO(path);
 
