@@ -164,6 +164,12 @@ void publisher_session(char *fifo_path, int id) {
     char buffer[MESSAGE_SIZE];
     char contents[MESSAGE_CONTENT_SIZE];
 
+    // stop if box already as a publisher
+    if (boxes[id]->n_publishers > 0) {
+        unlink(
+            fifo_path); // this is for the publisher to know there was an error
+        return;
+    }
     boxes[id]->n_publishers++;
 
     for (;;) {
