@@ -1,5 +1,5 @@
 #include "operations.h"
-#include "util.h"
+#include "util/util.h"
 
 #include <assert.h>
 #include <pthread.h>
@@ -9,7 +9,8 @@
 
 #define FILES 3
 
-const char *source_paths[] = {"tests/empty_file.txt", "tests/file_to_copy.txt", "tests/file_to_copy_over512.txt"};
+const char *source_paths[] = {"tests/empty_file.txt", "tests/file_to_copy.txt",
+                              "tests/file_to_copy_over512.txt"};
 const char *dest_path = "/f1";
 
 int main(void) {
@@ -20,7 +21,8 @@ int main(void) {
     for (int i = 0; i < FILES; i++)
         assert(tfs_copy_from_external_fs(source_paths[i], dest_path) != -1);
 
-    // Checking if the destination is properly written, should be equal to the last file coppied
+    // Checking if the destination is properly written, should be equal to the
+    // last file coppied
     int tfs = tfs_open(dest_path, TFS_O_CREAT);
     assert(tfs != -1);
     FILE *local_fs = fopen(source_paths[FILES - 1], "r");

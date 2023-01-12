@@ -1,5 +1,5 @@
 #include "operations.h"
-#include "util.h"
+#include "util/util.h"
 
 #include <assert.h>
 #include <pthread.h>
@@ -40,7 +40,8 @@ int main(void) {
     // Creating several links to the same file
     for (int i = 0; i < LINK_COUNT; i++) {
         thread_id[i] = i;
-        assert(pthread_create(threads + i, NULL, link_file, (void *)(thread_id + i)) == 0);
+        assert(pthread_create(threads + i, NULL, link_file,
+                              (void *)(thread_id + i)) == 0);
     }
 
     for (int i = 0; i < LINK_COUNT; i++)
@@ -62,7 +63,8 @@ int main(void) {
     // Unlinking the files
     for (int i = 0; i < LINK_COUNT; i++) {
         thread_id[i] = i;
-        assert(pthread_create(threads + i, NULL, unlink_file, (void *)(thread_id + i)) == 0);
+        assert(pthread_create(threads + i, NULL, unlink_file,
+                              (void *)(thread_id + i)) == 0);
     }
 
     for (int i = 0; i < LINK_COUNT; i++)
