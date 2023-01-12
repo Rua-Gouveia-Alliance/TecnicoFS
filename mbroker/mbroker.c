@@ -164,6 +164,10 @@ void publisher_session(char *fifo_path, int id) {
     char buffer[MESSAGE_SIZE];
     char contents[MESSAGE_CONTENT_SIZE];
 
+    // save the box path so it's possible to check if the box was deleted
+    char box_path[BOX_PATH_SIZE];
+    memcpy(box_path, boxes[id]->path, BOX_PATH_SIZE);
+
     // stop if box already as a publisher
     if (boxes[id]->n_publishers > 0) {
         unlink(
@@ -185,7 +189,7 @@ void publisher_session(char *fifo_path, int id) {
         parse_message(buffer, &op_code, contents);
 
         // If the box has been deleted the session ends
-        int tfs_fd = tfs_open(boxes[id]->path, TFS_O_APPEND);
+        int tfs_fd = tfs_open(box_path, TFS_O_APPEND);
         if (tfs_fd == -1)
             break;
 
@@ -212,8 +216,7 @@ void publisher_session(char *fifo_path, int id) {
 }
 
 void subscriber_session(char *fifo_path, int id) {
-    // Nao quero criar mas tmb nao ha tfs RDONLY, so provisorio
-    int tfs_fd = tfs_open(boxes[id]->path, TFS_O_CREAT);
+    int tfs_fd = tfs_open(boxes[id]->path, 0);
     if (tfs_fd == -1)
         return;
 
