@@ -85,13 +85,19 @@ void list_boxes_request(char *request, char *server_fifo, char *fifo) {
         }
     } while (!last);
 
+    // if no boxes exist
+    if (box_count == 1 && strncmp(responses[0] + LIST_RESPONSE_NAME_OFFSET, "",
+                                  BOX_NAME_SIZE) == 0) {
+        fprintf(stdout, "NO BOXES FOUND\n");
+        return;
+    }
+
     sort_box_responses(responses, box_count);
 
     // write boxes (sorted) to stdout
     for (size_t i = 0; i < box_count; i++) {
-        parse_list_response(responses[box_count * LIST_RESPONSE_SIZE], &op_code,
-                            &last, box_name, &box_size, &n_publishers,
-                            &n_subscribers);
+        parse_list_response(responses[i * LIST_RESPONSE_SIZE], &op_code, &last,
+                            box_name, &box_size, &n_publishers, &n_subscribers);
 
         fprintf(stdout, "%s %zu %zu %zu\n", box_name, box_size, n_publishers,
                 n_subscribers);
@@ -150,12 +156,13 @@ int main(int argc, char **argv) {
 
     // process response and write errors to stdout
     if (op_code != ans_op_code) {
-        fprintf(stdout, "%s\n", OP_CODE_DIFF);
+        fprintf(stdout, "ERROR %s\n", OP_CODE_DIFF);
         finish_manager(EXIT_FAILURE);
     }
     if (return_code == -1) {
-        fprintf(stdout, "%s\n", error);
+        fprintf(stdout, "ERROR %s\n", error);
         finish_manager(EXIT_FAILURE);
     }
+    fprintf(stdout, "OK\n");
     return 0;
 }

@@ -119,6 +119,14 @@ int add_box(char *path) {
 void box_list_session(char *fifo_path) {
     char response[LIST_RESPONSE_SIZE];
     char box_name[BOX_NAME_SIZE];
+
+    // if no boxes exist send response with last=1 and box_name with just '\0's
+    if (box_count == 0) {
+        char empty_name[BOX_NAME_SIZE];
+        memset(empty_name, '\0', BOX_NAME_SIZE);
+        create_list_response(response, 1, empty_name, 0, 0, 0);
+    }
+
     for (size_t i = 0; i < box_count; i++) {
         // remove / from box path
         memcpy(box_name, boxes[i]->path + 1, BOX_NAME_SIZE);
