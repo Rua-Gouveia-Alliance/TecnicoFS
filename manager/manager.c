@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,10 +28,6 @@ void finish_manager(int sig) {
     if (sig == SIGINT)
         exit(EXIT_SUCCESS);
     exit(sig);
-}
-
-int comparator(const void *a, const void *b) {
-    return strcmp((char *)a, (char *)b) > 0;
 }
 
 void sort_box_responses(char **responses, size_t count) {
@@ -67,7 +64,8 @@ void list_boxes_request(char *request, char *server_fifo, char *fifo) {
     char **responses, box_name[BOX_NAME_SIZE];
     responses = malloc(BUFFER_SIZE * LIST_RESPONSE_SIZE);
     uint8_t op_code, last;
-    size_t box_size, n_publishers, n_subscribers, box_count = 0;
+    uint64_t box_size, n_publishers, n_subscribers;
+    size_t box_count = 0;
     do {
         // receive response
         if (receive_content(fifo, responses[box_count * LIST_RESPONSE_SIZE],

@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,10 +27,10 @@
 typedef struct {
     char path[BOX_PATH_SIZE];
     size_t messages_size[MAX_MESSAGES];
-    int64_t message_count;
-    int64_t n_publishers;
-    int64_t n_subscribers;
-    int64_t size;
+    uint64_t message_count;
+    uint64_t n_publishers;
+    uint64_t n_subscribers;
+    size_t size;
 } box_t;
 
 box_t **boxes;
@@ -205,7 +206,7 @@ void publisher_session(char *fifo_path, int id) {
         // Updating the box
         boxes[id]->messages_size[boxes[id]->message_count] =
             (size_t)written_size;
-        boxes[id]->size += (int64_t)written_size;
+        boxes[id]->size += (size_t)written_size;
         boxes[id]->message_count++;
 
         // Notifying all subscribers
