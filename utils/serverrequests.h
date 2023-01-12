@@ -13,6 +13,7 @@
 #define RESPONSE_SIZE OP_CODE_SIZE + RET_CODE_SIZE + ERROR_SIZE
 #define LIST_RESPONSE_SIZE                                                     \
     OP_CODE_SIZE + sizeof(uint8_t) + BOX_NAME_SIZE + 3 * sizeof(uint64_t)
+#define LIST_RESPONSE_NAME_OFFSET OP_CODE_SIZE + sizeof(uint8_t)
 
 #include <stdint.h>
 #include <stdlib.h>

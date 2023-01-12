@@ -12,6 +12,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#define BUFFER_SIZE 100
 #define USAGE                                                                  \
     "usage:\n"                                                                 \
     "manager <register_pipe_name> create <box_name>\n"                         \
@@ -32,6 +33,25 @@ int comparator(const void *a, const void *b) {
     return strcmp((char *)a, (char *)b) > 0;
 }
 
+void sort_box_responses(char **responses, size_t count) {
+    char temp[LIST_RESPONSE_SIZE];
+    for (size_t i = 0; i <= count; i++)
+        for (size_t j = i + 1; j <= count; j++) {
+            if (strncmp(responses[i * LIST_RESPONSE_SIZE] +
+                            LIST_RESPONSE_NAME_OFFSET,
+                        responses[j * LIST_RESPONSE_SIZE] +
+                            LIST_RESPONSE_NAME_OFFSET,
+                        BOX_NAME_SIZE) > 0) {
+                memcpy(temp, responses[i * LIST_RESPONSE_SIZE],
+                       LIST_RESPONSE_SIZE);
+                memcpy(responses[i * LIST_RESPONSE_SIZE],
+                       responses[j * LIST_RESPONSE_SIZE], LIST_RESPONSE_SIZE);
+                memcpy(responses[j * LIST_RESPONSE_SIZE], temp,
+                       LIST_RESPONSE_SIZE);
+            }
+        }
+}
+
 void list_boxes_request(char *request, char *server_fifo, char *fifo) {
     // create request
     char box[BOX_NAME_SIZE];
@@ -44,24 +64,38 @@ void list_boxes_request(char *request, char *server_fifo, char *fifo) {
         finish_manager(EXIT_FAILURE);
     }
 
-    char response[RESPONSE_SIZE], box_name[BOX_NAME_SIZE];
+    char **responses, box_name[BOX_NAME_SIZE];
+    responses = malloc(BUFFER_SIZE * LIST_RESPONSE_SIZE);
     uint8_t op_code, last;
-    size_t box_size, n_publishers, n_subscribers;
+    size_t box_size, n_publishers, n_subscribers, box_count = 0;
     do {
         // receive response
-        if (receive_content(fifo, response, RESPONSE_SIZE) == -1) {
+        if (receive_content(fifo, responses[box_count * LIST_RESPONSE_SIZE],
+                            LIST_RESPONSE_SIZE) == -1) {
             fprintf(stdout, "%s\n", SERVER_ERROR);
             finish_manager(EXIT_FAILURE);
         }
-        parse_list_response(response, &op_code, &last, box_name, &box_size,
-                            &n_publishers, &n_subscribers);
 
-        // TODO: As caixas devem estar ordenadas por ordem alfabética, não sendo
-        // garantido que o servidor as envie por essa ordem (i.e., o cliente
-        // deve ordenar as caixas antes das imprimir).
+        // increment box_count and realloc buffer if necessary (current buffer
+        // size exceeded)
+        box_count++;
+        if (box_count % BUFFER_SIZE == 0) {
+            responses = realloc(responses, LIST_RESPONSE_SIZE * BUFFER_SIZE *
+                                               (box_count / BUFFER_SIZE + 1));
+        }
+    } while (!last);
+
+    sort_box_responses(responses, box_count);
+
+    // write boxes (sorted) to stdout
+    for (size_t i = 0; i < box_count; i++) {
+        parse_list_response(responses[box_count * LIST_RESPONSE_SIZE], &op_code,
+                            &last, box_name, &box_size, &n_publishers,
+                            &n_subscribers);
+
         fprintf(stdout, "%s %zu %zu %zu\n", box_name, box_size, n_publishers,
                 n_subscribers);
-    } while (!last);
+    }
 }
 
 int main(int argc, char **argv) {
