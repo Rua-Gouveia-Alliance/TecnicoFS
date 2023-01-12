@@ -21,6 +21,7 @@
 char path[PIPE_PATH_SIZE];
 
 void finish_manager(int sig) {
+    // delete pipe
     unlink(path);
     if (sig == SIGINT)
         exit(EXIT_SUCCESS);
@@ -32,9 +33,12 @@ int comparator(const void *a, const void *b) {
 }
 
 void list_boxes_request(char *request, char *server_fifo, char *fifo) {
+    // create request
     char box[BOX_NAME_SIZE];
     memset(box, '\0', BOX_NAME_SIZE);
     create_request(request, BOX_LIST, fifo, box);
+
+    // send request
     if (send_content(server_fifo, request, REQUEST_SIZE) == -1) {
         fprintf(stdout, "%s\n", SERVER_ERROR);
         finish_manager(EXIT_FAILURE);
@@ -44,11 +48,11 @@ void list_boxes_request(char *request, char *server_fifo, char *fifo) {
     uint8_t op_code, last;
     size_t box_size, n_publishers, n_subscribers;
     do {
+        // receive response
         if (receive_content(fifo, response, RESPONSE_SIZE) == -1) {
             fprintf(stdout, "%s\n", SERVER_ERROR);
             finish_manager(EXIT_FAILURE);
         }
-
         parse_list_response(response, &op_code, &last, box_name, &box_size,
                             &n_publishers, &n_subscribers);
 
@@ -78,12 +82,15 @@ int main(int argc, char **argv) {
     char request[REQUEST_SIZE];
     uint8_t ans_op_code;
     if (argc == 4 && !strcmp(argv[2], "create")) {
+        // create box request
         create_request(request, BOX_CREATION, path, argv[3]);
         ans_op_code = BOX_CREATION_ANS;
     } else if (argc == 4 && !strcmp(argv[2], "remove")) {
+        // remove box request
         create_request(request, BOX_DELETION, path, argv[3]);
         ans_op_code = BOX_DELETION_ANS;
     } else if (argc == 3 && !strcmp(argv[2], "list")) {
+        // list box request -> diferent function
         list_boxes_request(request, argv[1], path);
         return 0;
     } else {
@@ -91,22 +98,23 @@ int main(int argc, char **argv) {
         finish_manager(EXIT_FAILURE);
     }
 
+    // send request
     if (send_content(argv[1], request, REQUEST_SIZE) == -1) {
         fprintf(stdout, "%s\n", SERVER_ERROR);
         finish_manager(EXIT_FAILURE);
     }
 
+    // receive response
     char response[RESPONSE_SIZE], error[ERROR_SIZE];
     uint8_t op_code;
     int32_t return_code;
-
     if (receive_content(path, response, RESPONSE_SIZE) == -1) {
         fprintf(stdout, "%s\n", SERVER_ERROR);
         finish_manager(EXIT_FAILURE);
     }
-
     parse_response(response, &op_code, &return_code, error);
 
+    // process response and write errors to stdout
     if (op_code != ans_op_code) {
         fprintf(stdout, "%s\n", OP_CODE_DIFF);
         finish_manager(EXIT_FAILURE);

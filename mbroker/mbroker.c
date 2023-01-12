@@ -25,7 +25,7 @@
 
 typedef struct {
     char path[BOX_PATH_SIZE];
-    size_t messages[MAX_MESSAGES];
+    size_t messages_size[MAX_MESSAGES];
     int64_t message_count;
     int64_t n_publishers;
     int64_t n_subscribers;
@@ -116,6 +116,21 @@ int add_box(char *path) {
     return box_count - 1;
 }
 
+void box_list_session(char *fifo_path) {
+    char response[LIST_RESPONSE_SIZE];
+    char box_name[BOX_NAME_SIZE];
+    for (size_t i = 0; i < box_count; i++) {
+        // remove / from box path
+        memcpy(box_name, boxes[i]->path + 1, BOX_NAME_SIZE);
+
+        // create and send response
+        create_list_response(response, i == box_count - 1, boxes[i]->path,
+                             boxes[i]->message_count, boxes[i]->n_publishers,
+                             boxes[i]->n_subscribers);
+        send_content(fifo_path, response, LIST_RESPONSE_SIZE);
+    }
+}
+
 void box_creation_session(char *fifo_path, char *box_path) {
     char response[RESPONSE_SIZE];
     if (add_box(box_path) == -1) {
@@ -170,7 +185,8 @@ void publisher_session(char *fifo_path, int id) {
             break;
 
         // Updating the box
-        boxes[id]->messages[boxes[id]->message_count] = (size_t)written_size;
+        boxes[id]->messages_size[boxes[id]->message_count] =
+            (size_t)written_size;
         boxes[id]->size += (int64_t)written_size;
         boxes[id]->message_count++;
 
@@ -204,7 +220,7 @@ void subscriber_session(char *fifo_path, int id) {
         MUTEX_UNLOCK(box_mutex + id);
 
         // If reading from the box fails its because its been deleted
-        if (tfs_read(tfs_fd, contents, boxes[id]->messages[m_count]) == -1)
+        if (tfs_read(tfs_fd, contents, boxes[id]->messages_size[m_count]) == -1)
             break;
 
         // Creating and sending the message
@@ -255,7 +271,7 @@ void *consumer() {
             break;
         }
         case BOX_LIST:
-            // TODO
+            box_list_session(fifo);
             break;
         default:
             break;
