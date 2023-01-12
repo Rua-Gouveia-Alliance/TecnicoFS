@@ -1,9 +1,9 @@
-#include "../clients/messages.h"
-#include "../clients/opcodes.h"
-#include "../utils/betterassert.h"
-#include "../utils/betterpipes.h"
-#include "../utils/generatepath.h"
-#include "../utils/serverrequests.h"
+#include "messages.h"
+#include "opcodes.h"
+#include "betterassert.h"
+#include "betterpipes.h"
+#include "generatepath.h"
+#include "serverrequests.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
