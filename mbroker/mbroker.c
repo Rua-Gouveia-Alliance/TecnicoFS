@@ -73,6 +73,7 @@ int remove_box(char *path) {
     if (index == -1)
         return -1;
 
+    tfs_unlink(path);
     free(boxes[index]);
     box_count--;
     for (int i = index; i < box_count; i++)
@@ -270,14 +271,20 @@ void *consumer() {
         switch (op_code) {
         case PUBLISHER:
             // If the box doesnt exist, reject the publisher
-            if ((id = box_lookup(box_path)) == -1)
-                break; // Esta implemencatacao e so provisoria
+            if ((id = box_lookup(box_path)) == -1) {
+                unlink(fifo); // this is for the publisher to know there was an
+                              // error
+                break;
+            }
             publisher_session(fifo, id);
             break;
         case SUBSCRIBER:
             // If the box doesnt exist, reject the subscriber
-            if ((id = box_lookup(box_path)) == -1)
-                break; // Esta implemencatacao e so provisoria
+            if ((id = box_lookup(box_path)) == -1) {
+                unlink(fifo); // this is for the subscriber to know there was an
+                              // error
+                break;
+            }
             subscriber_session(fifo, id);
             break;
         case BOX_CREATION: {
