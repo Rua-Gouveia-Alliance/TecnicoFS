@@ -67,6 +67,11 @@ void create_message(void *dest, uint8_t op_code, char *message) {
 void parse_request(void *request, uint8_t *op_code, char *session_pipe,
                    char *box_name) {
 
+    // clear bytes
+    memset(session_pipe, '\0', PIPE_PATH_SIZE);
+    memset(box_name, '\0', BOX_NAME_SIZE);
+
+    // write data
     memcpy(op_code, request, OP_CODE_SIZE);
     memcpy(session_pipe, request + OP_CODE_SIZE, PIPE_PATH_SIZE);
     memcpy(box_name, request + OP_CODE_SIZE + PIPE_PATH_SIZE, BOX_NAME_SIZE);
@@ -75,6 +80,10 @@ void parse_request(void *request, uint8_t *op_code, char *session_pipe,
 void parse_response(void *response, uint8_t *op_code, int32_t *return_code,
                     char *error) {
 
+    // clear bytes
+    memset(error, '\0', ERROR_SIZE);
+
+    // write data
     memcpy(op_code, response, OP_CODE_SIZE);
     memcpy(return_code, response + OP_CODE_SIZE, RET_CODE_SIZE);
     memcpy(error, response + OP_CODE_SIZE + RET_CODE_SIZE, ERROR_SIZE);
@@ -84,6 +93,10 @@ void parse_list_response(void *response, uint8_t *op_code, uint8_t *last,
                          char *box_name, uint64_t *box_size,
                          uint64_t *n_publishers, uint64_t *n_subscribers) {
 
+    // clear bytes
+    memset(box_name, '\0', BOX_NAME_SIZE);
+
+    // write data
     memcpy(op_code, response, OP_CODE_SIZE);
     memcpy(last, response + OP_CODE_SIZE, sizeof(uint8_t));
     memcpy(box_name, response + OP_CODE_SIZE + sizeof(uint8_t), BOX_NAME_SIZE);

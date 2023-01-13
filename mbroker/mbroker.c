@@ -172,15 +172,13 @@ void publisher_session(char *fifo_path, int id) {
 
     // stop if box already as a publisher
     if (boxes[id]->n_publishers > 0) {
-        unlink(
-            fifo_path); // this is for the publisher to know there was an error
+        unlink(fifo_path); // for the subscriber to know there was an error
         return;
     }
     boxes[id]->n_publishers++;
 
     for (;;) {
         memset(buffer, '\0', MESSAGE_SIZE);
-        memset(contents, '\0', MESSAGE_CONTENT_SIZE);
 
         // If the pipe has been closed the session ends
         if (receive_content(fifo_path, buffer, MESSAGE_SIZE) == -1)
@@ -192,8 +190,10 @@ void publisher_session(char *fifo_path, int id) {
 
         // If the box has been deleted the session ends
         int tfs_fd = tfs_open(box_path, TFS_O_APPEND);
-        if (tfs_fd == -1)
+        if (tfs_fd == -1) {
+            unlink(fifo_path); // for the subscriber to know there was an error
             break;
+        }
 
         // Writing the contents to tfs
         size_t message_size = strlen(contents);
@@ -201,8 +201,12 @@ void publisher_session(char *fifo_path, int id) {
         tfs_close(tfs_fd);
 
         // If writing to the box fails its because its been deleted
-        if (written_size == -1)
+        // TODO: what to do when the box is full? i'm just terminating the
+        // publisher (with an error)
+        if (written_size == -1 || written_size < message_size) {
+            unlink(fifo_path); // for the subscriber to know there was an error
             break;
+        }
 
         // Updating the box
         boxes[id]->messages_size[boxes[id]->message_count] =
@@ -229,7 +233,6 @@ void subscriber_session(char *fifo_path, int id) {
     char contents[MESSAGE_CONTENT_SIZE];
     for (;;) {
         memset(buffer, '\0', MESSAGE_SIZE);
-        memset(contents, '\0', MESSAGE_CONTENT_SIZE);
 
         MUTEX_LOCK(box_mutex + id);
 
@@ -239,8 +242,10 @@ void subscriber_session(char *fifo_path, int id) {
         MUTEX_UNLOCK(box_mutex + id);
 
         // If reading from the box fails its because its been deleted
-        if (tfs_read(tfs_fd, contents, boxes[id]->messages_size[m_count]) == -1)
+        if (tfs_read(tfs_fd, contents, boxes[id]->messages_size[m_count])) {
+            unlink(fifo_path); // for the subscriber to know there was an error
             break;
+        }
 
         // Creating and sending the message
         create_message(buffer, SUBSCRIBER_MESSAGE, contents);
@@ -272,8 +277,7 @@ void *consumer() {
         case PUBLISHER:
             // If the box doesnt exist, reject the publisher
             if ((id = box_lookup(box_path)) == -1) {
-                unlink(fifo); // this is for the publisher to know there was an
-                              // error
+                unlink(fifo); // for the subscriber to know there was an error
                 break;
             }
             publisher_session(fifo, id);
@@ -281,8 +285,7 @@ void *consumer() {
         case SUBSCRIBER:
             // If the box doesnt exist, reject the subscriber
             if ((id = box_lookup(box_path)) == -1) {
-                unlink(fifo); // this is for the subscriber to know there was an
-                              // error
+                unlink(fifo); // for the subscriber to know there was an error
                 break;
             }
             subscriber_session(fifo, id);
