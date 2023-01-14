@@ -12,7 +12,7 @@
 #include <unistd.h>
 
 size_t m_count = 0;
-char path[PIPE_PATH_SIZE];
+char *path;
 
 void finish_subscriber(int sig) {
     fprintf(stdout, "\n%lu\n", m_count);
@@ -34,7 +34,7 @@ int main(int argc, char **argv) {
     sigaction(SIGINT, &act, NULL);
 
     // Creating the FIFO
-    memcpy(path, argv[2], PIPE_PATH_SIZE);
+    path = argv[2];
     MK_FIFO(path);
 
     // Creating the string that will be sent to the server and send it

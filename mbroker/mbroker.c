@@ -40,7 +40,7 @@ pthread_cond_t *box_cond;
 pthread_mutex_t *box_mutex;
 size_t boxes_allocated_size;
 pc_queue_t *pc_queue;
-char path[PIPE_PATH_SIZE];
+char *path;
 
 void server_destroy() {
     unlink(path);
@@ -385,7 +385,7 @@ void server_init(pthread_t *threads, size_t max_sessions) {
 int main(int argc, char **argv) {
     ALWAYS_ASSERT(argc == 3, "usage: mbroker <pipename> <max_sessions>\n");
 
-    memcpy(path, argv[1], PIPE_PATH_SIZE);
+    path = argv[1];
     char *endptr;
 
     errno = 0;

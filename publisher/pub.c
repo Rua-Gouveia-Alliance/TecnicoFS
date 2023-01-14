@@ -11,7 +11,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-char path[PIPE_PATH_SIZE];
+char *path;
 
 void finish_publisher(int sig) {
     unlink(path);
@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
     sigaction(SIGINT, &act, NULL);
 
     // Creating the FIFO
-    memcpy(path, argv[2], PIPE_PATH_SIZE);
+    path = argv[2];
     MK_FIFO(path);
 
     // Creating the string that will be sent to the server and send

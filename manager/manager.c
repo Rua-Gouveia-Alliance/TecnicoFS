@@ -19,7 +19,7 @@
     "manager <register_pipe_name> <pipe_name> remove <box_name>\n"             \
     "manager <register_pipe_name> <pipe_name> list"
 
-char path[PIPE_PATH_SIZE];
+char *path;
 
 void finish_manager(int sig) {
     // delete pipe
@@ -108,7 +108,7 @@ int main(int argc, char **argv) {
     sigaction(SIGINT, &act, NULL);
 
     // Creating the FIFO
-    memcpy(path, argv[2], PIPE_PATH_SIZE);
+    path = argv[2];
     MK_FIFO(path);
 
     char request[REQUEST_SIZE];
