@@ -35,9 +35,11 @@ typedef struct {
 } box_t;
 
 box_t **boxes;
+int *free_box;
 int box_count = 0;
 pthread_cond_t *box_cond;
 pthread_mutex_t *box_mutex;
+pthread_rwlock_t *box_rwl;
 size_t boxes_allocated_size;
 pc_queue_t *pc_queue;
 char *path;
@@ -50,6 +52,7 @@ void server_destroy() {
     for (size_t i = 0; i < boxes_allocated_size; i++) {
         MUTEX_DESTROY(box_mutex + i);
         COND_DESTROY(box_cond + i);
+        RWLOCK_DESTROY(box_rwl + i);
         free(boxes[i]);
     }
 
@@ -58,6 +61,8 @@ void server_destroy() {
     free(boxes);
     free(box_mutex);
     free(box_cond);
+    free(box_rwl);
+    free(free_box);
     free(pc_queue);
 }
 
@@ -128,6 +133,16 @@ int realloc_boxes() {
     if (box_cond == NULL)
         return -1;
 
+    box_rwl = realloc(box_rwl, (boxes_allocated_size + BOXES_BLOCK) *
+                                   sizeof(pthread_rwlock_t));
+    if (box_rwl == NULL)
+        return -1;
+
+    free_box =
+        realloc(free_box, (boxes_allocated_size + BOXES_BLOCK) * sizeof(int));
+    if (free_box == NULL)
+        return -1;
+
     for (size_t i = 0; i < BOXES_BLOCK; i++) {
         if (pthread_mutex_init(box_mutex + boxes_allocated_size + i, NULL) !=
             0) {
@@ -139,6 +154,14 @@ int realloc_boxes() {
             fprintf(stdout, "pthread_cond_init critical error\n");
             finish_mbroker(EXIT_FAILURE);
         }
+
+        if (pthread_rwlock_init(box_rwl + boxes_allocated_size + i, NULL) !=
+            0) {
+            fprintf(stdout, "pthread_rwlock_init critical error\n");
+            finish_mbroker(EXIT_FAILURE);
+        }
+
+        free_box[boxes_allocated_size + i] = 0;
     }
 
     boxes_allocated_size += BOXES_BLOCK;
@@ -208,12 +231,22 @@ void publisher_session(char *fifo_path, char *box_path) {
     if (id == -1)
         return;
 
+    if (pthread_rwlock_wrlock(box_rwl + id) != 0) {
+        fprintf(stdout, "pthread_rwlock_wrlock critical error\n");
+        finish_mbroker(EXIT_FAILURE);
+    }
+
     // stop if box already has a publisher
     if (boxes[id]->n_publishers > 0) {
         unlink(fifo_path); // for the subscriber to know there was an error
         return;
     }
     boxes[id]->n_publishers++;
+
+    if (pthread_rwlock_unlock(box_rwl + id) != 0) {
+        fprintf(stdout, "pthread_rwlock_unlock critical error\n");
+        finish_mbroker(EXIT_FAILURE);
+    }
 
     for (;;) {
         memset(buffer, '\0', MESSAGE_SIZE);
@@ -246,16 +279,36 @@ void publisher_session(char *fifo_path, char *box_path) {
             break;
         }
 
+        if (pthread_rwlock_wrlock(box_rwl + id) != 0) {
+            fprintf(stdout, "pthread_rwlock_wrlock critical error\n");
+            finish_mbroker(EXIT_FAILURE);
+        }
+
         // Updating the box
         boxes[id]->messages_size[boxes[id]->message_count++] =
             (size_t)written_size;
         boxes[id]->size += (size_t)written_size;
 
+        if (pthread_rwlock_unlock(box_rwl + id) != 0) {
+            fprintf(stdout, "pthread_rwlock_unlock critical error\n");
+            finish_mbroker(EXIT_FAILURE);
+        }
+
         // Notifying all subscribers
         pthread_cond_broadcast(box_cond + id);
     }
 
+    if (pthread_rwlock_wrlock(box_rwl + id) != 0) {
+        fprintf(stdout, "pthread_rwlock_wrlock critical error\n");
+        finish_mbroker(EXIT_FAILURE);
+    }
+
     boxes[id]->n_publishers--;
+
+    if (pthread_rwlock_unlock(box_rwl + id) != 0) {
+        fprintf(stdout, "pthread_rwlock_unlock critical error\n");
+        finish_mbroker(EXIT_FAILURE);
+    }
 }
 
 void subscriber_session(char *fifo_path, char *box_path) {
@@ -267,7 +320,17 @@ void subscriber_session(char *fifo_path, char *box_path) {
     if (tfs_fd == -1)
         return;
 
+    if (pthread_rwlock_wrlock(box_rwl + id) != 0) {
+        fprintf(stdout, "pthread_rwlock_wrlock critical error\n");
+        finish_mbroker(EXIT_FAILURE);
+    }
+
     boxes[id]->n_subscribers++;
+
+    if (pthread_rwlock_unlock(box_rwl + id) != 0) {
+        fprintf(stdout, "pthread_rwlock_unlock critical error\n");
+        finish_mbroker(EXIT_FAILURE);
+    }
 
     int64_t m_count = 0;
     char buffer[MESSAGE_SIZE];
@@ -304,7 +367,18 @@ void subscriber_session(char *fifo_path, char *box_path) {
     }
 
     tfs_close(tfs_fd);
+
+    if (pthread_rwlock_wrlock(box_rwl + id) != 0) {
+        fprintf(stdout, "pthread_rwlock_wrlock critical error\n");
+        finish_mbroker(EXIT_FAILURE);
+    }
+
     boxes[id]->n_subscribers--;
+
+    if (pthread_rwlock_unlock(box_rwl + id) != 0) {
+        fprintf(stdout, "pthread_rwlock_unlock critical error\n");
+        finish_mbroker(EXIT_FAILURE);
+    }
 }
 
 void *consumer() {
@@ -352,15 +426,23 @@ void server_init(pthread_t *threads, size_t max_sessions) {
     boxes = malloc(BOXES_BLOCK * sizeof(box_t *));
     ALWAYS_ASSERT(boxes != NULL, "no memory");
 
+    free_box = malloc(BOXES_BLOCK * sizeof(int));
+    ALWAYS_ASSERT(free_box != NULL, "no memory");
+
     box_mutex = malloc(BOXES_BLOCK * sizeof(pthread_mutex_t));
     ALWAYS_ASSERT(box_mutex != NULL, "no memory");
 
     box_cond = malloc(BOXES_BLOCK * sizeof(pthread_cond_t));
     ALWAYS_ASSERT(box_cond != NULL, "no memory");
 
+    box_rwl = malloc(BOXES_BLOCK * sizeof(pthread_rwlock_t));
+    ALWAYS_ASSERT(box_rwl != NULL, "no memory");
+
     for (size_t i = 0; i < BOXES_BLOCK; i++) {
         MUTEX_INIT(box_mutex + i);
         COND_INIT(box_cond + i);
+        RWLOCK_INIT(box_rwl + i);
+        free_box[i] = 0;
     }
 
     pc_queue = malloc(sizeof(pc_queue_t));
