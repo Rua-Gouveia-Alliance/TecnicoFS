@@ -115,11 +115,11 @@ int main(int argc, char **argv) {
     uint8_t ans_op_code;
     if (argc == 5 && !strcmp(argv[3], "create")) {
         // create box request
-        create_request(request, BOX_CREATION, path, argv[3]);
+        create_request(request, BOX_CREATION, path, argv[4]);
         ans_op_code = BOX_CREATION_ANS;
     } else if (argc == 5 && !strcmp(argv[3], "remove")) {
         // remove box request
-        create_request(request, BOX_DELETION, path, argv[3]);
+        create_request(request, BOX_DELETION, path, argv[4]);
         ans_op_code = BOX_DELETION_ANS;
     } else if (argc == 4 && !strcmp(argv[3], "list")) {
         // list box request -> diferent function
