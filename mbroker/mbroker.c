@@ -42,6 +42,25 @@ size_t boxes_allocated_size;
 pc_queue_t *pc_queue;
 char path[PIPE_PATH_SIZE];
 
+void server_destroy() {
+    unlink(path);
+
+    ALWAYS_ASSERT(tfs_destroy() == 0, "tfs_destroy critical error");
+
+    for (size_t i = 0; i < boxes_allocated_size; i++) {
+        MUTEX_DESTROY(box_mutex + i);
+        COND_DESTROY(box_cond + i);
+        free(boxes[i]);
+    }
+
+    pcq_destroy(pc_queue);
+
+    free(boxes);
+    free(box_mutex);
+    free(box_cond);
+    free(pc_queue);
+}
+
 void finish_mbroker(int sig) {
     server_destroy();
 
@@ -50,15 +69,14 @@ void finish_mbroker(int sig) {
     exit(sig);
 }
 
-box_t *create_box(char *path) {
+box_t *create_box(char *box_path) {
     box_t *box = malloc(sizeof(box_t));
     if (box == NULL) {
         fprintf(stdout, "create_box: out of memory");
         finish_mbroker(EXIT_FAILURE);
     }
 
-    // Damos so overwrite ao file de uma box se o nome ja existir , provisorio
-    int fd = tfs_open(path, TFS_O_CREAT | TFS_O_TRUNC);
+    int fd = tfs_open(box_path, TFS_O_CREAT | TFS_O_TRUNC);
     if (fd == -1)
         return NULL;
     tfs_close(fd);
@@ -68,25 +86,25 @@ box_t *create_box(char *path) {
     box->n_subscribers = 0;
     box->message_count = 0;
 
-    strncpy(box->path, path, BOX_PATH_SIZE - 1);
+    strncpy(box->path, box_path, BOX_PATH_SIZE - 1);
     box->path[BOX_PATH_SIZE - 1] = '\0';
 
     return box;
 }
 
-int box_lookup(char *path) {
+int box_lookup(char *box_path) {
     for (int i = 0; i < box_count; i++)
-        if (strncmp(path, boxes[i]->path, BOX_PATH_SIZE) == 0)
+        if (strncmp(box_path, boxes[i]->path, BOX_PATH_SIZE) == 0)
             return i;
     return -1;
 }
 
-int remove_box(char *path) {
-    int index = box_lookup(path);
+int remove_box(char *box_path) {
+    int index = box_lookup(box_path);
     if (index == -1)
         return -1;
 
-    tfs_unlink(path);
+    tfs_unlink(box_path);
     free(boxes[index]);
     box_count--;
     for (int i = index; i < box_count; i++)
@@ -127,14 +145,14 @@ int realloc_boxes() {
     return 0;
 }
 
-int add_box(char *path) {
+int add_box(char *box_path) {
     if (box_count + 1 > boxes_allocated_size) {
         if (realloc_boxes() != 0) {
             fprintf(stdout, "no memory\n");
             finish_mbroker(EXIT_FAILURE);
         }
     }
-    box_t *box = create_box(path);
+    box_t *box = create_box(box_path);
     if (box == NULL)
         return -1;
 
@@ -229,10 +247,9 @@ void publisher_session(char *fifo_path, int id) {
         }
 
         // Updating the box
-        boxes[id]->messages_size[boxes[id]->message_count] =
+        boxes[id]->messages_size[boxes[id]->message_count++] =
             (size_t)written_size;
         boxes[id]->size += (size_t)written_size;
-        boxes[id]->message_count++;
 
         // Notifying all subscribers
         pthread_cond_broadcast(box_cond + id);
@@ -268,7 +285,7 @@ void subscriber_session(char *fifo_path, int id) {
         }
 
         // If reading from the box fails its because its been deleted
-        if (tfs_read(tfs_fd, contents, boxes[id]->messages_size[m_count]) ==
+        if (tfs_read(tfs_fd, contents, boxes[id]->messages_size[m_count++]) ==
             -1) {
             unlink(fifo_path); // for the subscriber to know there was an error
             break;
@@ -280,8 +297,6 @@ void subscriber_session(char *fifo_path, int id) {
         // If the pipe has been closed the session ends
         if (send_content(fifo_path, buffer, MESSAGE_SIZE) == -1)
             break;
-
-        m_count++;
     }
 
     tfs_close(tfs_fd);
@@ -336,25 +351,6 @@ void *consumer() {
         }
     }
     return NULL;
-}
-
-void server_destroy() {
-    unlink(path);
-
-    ALWAYS_ASSERT(tfs_destroy() == 0, "tfs_destroy critical error");
-
-    for (size_t i = 0; i < boxes_allocated_size; i++) {
-        MUTEX_DESTROY(box_mutex + i);
-        COND_DESTROY(box_cond + i);
-        free(boxes[i]);
-    }
-
-    pcq_destroy(pc_queue);
-
-    free(boxes);
-    free(box_mutex);
-    free(box_cond);
-    free(pc_queue);
 }
 
 void server_init(pthread_t *threads, size_t max_sessions) {

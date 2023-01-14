@@ -22,9 +22,9 @@ void finish_publisher(int sig) {
 }
 
 int main(int argc, char **argv) {
-    ALWAYS_ASSERT(argc == 3, "usage: pub <register_pipe> <box_name>\n");
+    ALWAYS_ASSERT(argc == 3, "usage: pub <register_pipe> <box_name>");
     char *box_name = argv[2];
-    ALWAYS_ASSERT(strlen(box_name) < BOX_NAME_SIZE, "invalid box name\n");
+    ALWAYS_ASSERT(strlen(box_name) < BOX_NAME_SIZE, "invalid box name");
 
     // Setting up SIGINT handling
     struct sigaction act;
@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
     char request[REQUEST_SIZE];
     create_request(request, PUBLISHER, path, box_name);
     if (send_content(argv[1], request, REQUEST_SIZE) == -1) {
-        fprintf(stdout, "invalid register pipe name");
+        fprintf(stdout, "invalid register pipe name\n");
         finish_publisher(EXIT_FAILURE);
     }
 
@@ -50,7 +50,7 @@ int main(int argc, char **argv) {
         ssize_t read_result = read(STDIN_FILENO, buffer, MESSAGE_CONTENT_SIZE);
 
         if (read_result < 1)
-            break;
+            finish_publisher(EXIT_SUCCESS);
 
         // Removing newline
         size_t size = (size_t)read_result;
@@ -59,10 +59,9 @@ int main(int argc, char **argv) {
         // Create and sending message to server
         char message[MESSAGE_SIZE];
         create_message(message, PUBLISHER_MESSAGE, buffer);
-        if (send_content(path, message, MESSAGE_SIZE) == -1) {
-            fprintf(stdout, "%s\n", SERVER_ERROR);
-            finish_publisher(EXIT_SUCCESS);
-        }
+
+        if (send_content(path, message, MESSAGE_SIZE) == -1)
+            finish_publisher(EXIT_FAILURE);
     }
 
     finish_publisher(EXIT_SUCCESS);

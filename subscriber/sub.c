@@ -1,8 +1,8 @@
-#include "messages.h"
-#include "opcodes.h"
 #include "betterassert.h"
 #include "betterpipes.h"
 #include "generatepath.h"
+#include "messages.h"
+#include "opcodes.h"
 #include "serverrequests.h"
 #include <errno.h>
 #include <fcntl.h>
@@ -49,8 +49,9 @@ int main(int argc, char **argv) {
     char message[MESSAGE_SIZE];
     for (;;) {
         memset(message, '\0', MESSAGE_CONTENT_SIZE);
+
         if (receive_content(path, message, MESSAGE_SIZE) == -1)
-            break;
+            finish_subscriber(EXIT_FAILURE);
 
         // Printing the received message
         uint8_t op_code;
