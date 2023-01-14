@@ -1,5 +1,4 @@
 #include "betterpipes.h"
-#include "generatepath.h"
 #include "messages.h"
 #include "opcodes.h"
 #include "serverrequests.h"
@@ -16,9 +15,9 @@
 #define BUFFER_SIZE 100
 #define USAGE                                                                  \
     "usage:\n"                                                                 \
-    "manager <register_pipe_name> create <box_name>\n"                         \
-    "manager <register_pipe_name> remove <box_name>\n"                         \
-    "manager <register_pipe_name> list"
+    "manager <register_pipe_name> <pipe_name> create <box_name>\n"             \
+    "manager <register_pipe_name> <pipe_name> remove <box_name>\n"             \
+    "manager <register_pipe_name> <pipe_name> list"
 
 char path[PIPE_PATH_SIZE];
 
@@ -98,7 +97,7 @@ void list_boxes_request(char *request, char *server_fifo, char *fifo) {
 }
 
 int main(int argc, char **argv) {
-    if (argc < 3) {
+    if (argc < 4) {
         fprintf(stdout, "%s\n", USAGE);
         finish_manager(EXIT_FAILURE);
     }
@@ -109,20 +108,20 @@ int main(int argc, char **argv) {
     sigaction(SIGINT, &act, NULL);
 
     // Creating the FIFO
-    generate_path(path);
+    memcpy(path, argv[2], PIPE_PATH_SIZE);
     MK_FIFO(path);
 
     char request[REQUEST_SIZE];
     uint8_t ans_op_code;
-    if (argc == 4 && !strcmp(argv[2], "create")) {
+    if (argc == 5 && !strcmp(argv[3], "create")) {
         // create box request
         create_request(request, BOX_CREATION, path, argv[3]);
         ans_op_code = BOX_CREATION_ANS;
-    } else if (argc == 4 && !strcmp(argv[2], "remove")) {
+    } else if (argc == 5 && !strcmp(argv[3], "remove")) {
         // remove box request
         create_request(request, BOX_DELETION, path, argv[3]);
         ans_op_code = BOX_DELETION_ANS;
-    } else if (argc == 3 && !strcmp(argv[2], "list")) {
+    } else if (argc == 4 && !strcmp(argv[3], "list")) {
         // list box request -> diferent function
         list_boxes_request(request, argv[1], path);
         finish_manager(EXIT_SUCCESS);

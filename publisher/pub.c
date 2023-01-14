@@ -1,6 +1,5 @@
 #include "betterassert.h"
 #include "betterpipes.h"
-#include "generatepath.h"
 #include "messages.h"
 #include "opcodes.h"
 #include "serverrequests.h"
@@ -22,8 +21,9 @@ void finish_publisher(int sig) {
 }
 
 int main(int argc, char **argv) {
-    ALWAYS_ASSERT(argc == 3, "usage: pub <register_pipe> <box_name>");
-    char *box_name = argv[2];
+    ALWAYS_ASSERT(argc == 4,
+                  "usage: pub <register_pipe> <pipe_name> <box_name>");
+    char *box_name = argv[3];
     ALWAYS_ASSERT(strlen(box_name) < BOX_NAME_SIZE, "invalid box name");
 
     // Setting up SIGINT handling
@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
     sigaction(SIGINT, &act, NULL);
 
     // Creating the FIFO
-    generate_path(path);
+    memcpy(path, argv[2], PIPE_PATH_SIZE);
     MK_FIFO(path);
 
     // Creating the string that will be sent to the server and send
