@@ -123,7 +123,11 @@ int send_content(char *fifo, void *content, size_t size) {
     if (fd == -1)
         return -1;
 
-    write(fd, content, size);
+    if (write(fd, content, size) == -1) {
+        close(fd);
+        return -1;
+    }
+
     close(fd);
     return 0;
 }
@@ -133,7 +137,11 @@ int receive_content(char *fifo, void *content, size_t size) {
     if (fd == -1)
         return -1;
 
-    read(fd, content, size);
+    if (read(fd, content, size) == -1) {
+        close(fd);
+        return -1;
+    }
+
     close(fd);
     return 0;
 }

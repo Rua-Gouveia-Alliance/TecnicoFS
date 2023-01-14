@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,10 +40,22 @@ pthread_cond_t *box_cond;
 pthread_mutex_t *box_mutex;
 size_t boxes_allocated_size;
 pc_queue_t *pc_queue;
+char path[PIPE_PATH_SIZE];
+
+void finish_mbroker(int sig) {
+    server_destroy();
+
+    if (sig == SIGINT)
+        exit(EXIT_SUCCESS);
+    exit(sig);
+}
 
 box_t *create_box(char *path) {
     box_t *box = malloc(sizeof(box_t));
-    ALWAYS_ASSERT(box != NULL, "create_box: out of memory");
+    if (box == NULL) {
+        fprintf(stdout, "create_box: out of memory");
+        finish_mbroker(EXIT_FAILURE);
+    }
 
     // Damos so overwrite ao file de uma box se o nome ja existir , provisorio
     int fd = tfs_open(path, TFS_O_CREAT | TFS_O_TRUNC);
@@ -98,8 +111,16 @@ int realloc_boxes() {
         return -1;
 
     for (size_t i = 0; i < BOXES_BLOCK; i++) {
-        MUTEX_INIT(box_mutex + boxes_allocated_size + i);
-        COND_INIT(box_cond + boxes_allocated_size + i);
+        if (pthread_mutex_init(box_mutex + boxes_allocated_size + i, NULL) !=
+            0) {
+            fprintf(stdout, "pthread_mutex_init critical error\n");
+            finish_mbroker(EXIT_FAILURE);
+        }
+
+        if (pthread_cond_init(box_cond + boxes_allocated_size + i, NULL) != 0) {
+            fprintf(stdout, "pthread_cond_init critical error\n");
+            finish_mbroker(EXIT_FAILURE);
+        }
     }
 
     boxes_allocated_size += BOXES_BLOCK;
@@ -107,9 +128,12 @@ int realloc_boxes() {
 }
 
 int add_box(char *path) {
-    if (box_count + 1 > boxes_allocated_size)
-        ALWAYS_ASSERT(realloc_boxes() == 0, "no memory");
-
+    if (box_count + 1 > boxes_allocated_size) {
+        if (realloc_boxes() != 0) {
+            fprintf(stdout, "no memory\n");
+            finish_mbroker(EXIT_FAILURE);
+        }
+    }
     box_t *box = create_box(path);
     if (box == NULL)
         return -1;
@@ -230,15 +254,22 @@ void subscriber_session(char *fifo_path, int id) {
     for (;;) {
         memset(buffer, '\0', MESSAGE_SIZE);
 
-        MUTEX_LOCK(box_mutex + id);
+        if (pthread_mutex_lock(box_mutex + id) != 0) {
+            fprintf(stdout, "pthread_mutex_lock critical error\n");
+            finish_mbroker(EXIT_FAILURE);
+        }
 
         while (m_count == boxes[id]->message_count)
             pthread_cond_wait(box_cond + id, box_mutex + id);
 
-        MUTEX_UNLOCK(box_mutex + id);
+        if (pthread_mutex_unlock(box_mutex + id) != 0) {
+            fprintf(stdout, "pthread_mutex_unlock critical error\n");
+            finish_mbroker(EXIT_FAILURE);
+        }
 
         // If reading from the box fails its because its been deleted
-        if (tfs_read(tfs_fd, contents, boxes[id]->messages_size[m_count])) {
+        if (tfs_read(tfs_fd, contents, boxes[id]->messages_size[m_count]) ==
+            -1) {
             unlink(fifo_path); // for the subscriber to know there was an error
             break;
         }
@@ -260,7 +291,10 @@ void subscriber_session(char *fifo_path, int id) {
 void *consumer() {
     for (;;) {
         char *request = (char *)pcq_dequeue(pc_queue);
-        ALWAYS_ASSERT(request != NULL, "producer-consumer critical error");
+        if (request == NULL) {
+            fprintf(stdout, "producer-consumer critical error\n");
+            finish_mbroker(EXIT_FAILURE);
+        }
         uint8_t op_code;
         char fifo[PIPE_PATH_SIZE], box_name[BOX_NAME_SIZE];
         parse_request(request, &op_code, fifo, box_name);
@@ -304,8 +338,8 @@ void *consumer() {
     return NULL;
 }
 
-void server_destroy(char *fifo_path) {
-    MK_FIFO(fifo_path);
+void server_destroy() {
+    unlink(path);
 
     ALWAYS_ASSERT(tfs_destroy() == 0, "tfs_destroy critical error");
 
@@ -323,9 +357,7 @@ void server_destroy(char *fifo_path) {
     free(pc_queue);
 }
 
-void server_init(char *fifo_path, pthread_t *threads, size_t max_sessions) {
-    MK_FIFO(fifo_path);
-
+void server_init(pthread_t *threads, size_t max_sessions) {
     ALWAYS_ASSERT(tfs_init(NULL) == 0, "tfs_init critical error");
 
     boxes = malloc(BOXES_BLOCK * sizeof(box_t *));
@@ -350,12 +382,15 @@ void server_init(char *fifo_path, pthread_t *threads, size_t max_sessions) {
 
     for (size_t i = 0; i < max_sessions; i++)
         THREAD_CREATE(threads + i, consumer);
+
+    MK_FIFO(path);
 }
 
 int main(int argc, char **argv) {
     ALWAYS_ASSERT(argc == 3, "usage: mbroker <pipename> <max_sessions>\n");
 
-    char *fifo_path = argv[1], *endptr;
+    memcpy(path, argv[1], PIPE_PATH_SIZE);
+    char *endptr;
 
     errno = 0;
     size_t sessions = strtoul(argv[2], &endptr, 10);
@@ -363,14 +398,23 @@ int main(int argc, char **argv) {
                   "invalid max_sessions value\n");
 
     pthread_t threads[sessions];
-    server_init(argv[1], threads, sessions);
+    server_init(threads, sessions);
+
+    // Setting up SIGINT handling
+    struct sigaction act;
+    act.sa_handler = &finish_mbroker;
+    sigaction(SIGINT, &act, NULL);
 
     for (;;) {
         char buffer[REQUEST_SIZE];
-        ALWAYS_ASSERT(receive_content(fifo_path, buffer, REQUEST_SIZE) != -1,
-                      "fifo was deleted");
-        ALWAYS_ASSERT(pcq_enqueue(pc_queue, buffer) != -1,
-                      "producer-consumer critical error");
+        if (receive_content(path, buffer, REQUEST_SIZE) == -1) {
+            fprintf(stdout, "fifo was deleted\n");
+            finish_mbroker(EXIT_FAILURE);
+        }
+        if (pcq_enqueue(pc_queue, buffer) == -1) {
+            fprintf(stdout, "producer-consumer critical error\n");
+            finish_mbroker(EXIT_FAILURE);
+        }
     }
     return 0;
 }
