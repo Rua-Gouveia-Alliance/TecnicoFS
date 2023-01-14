@@ -120,7 +120,6 @@ int add_box(char *path) {
 
 void box_list_session(char *fifo_path) {
     char response[LIST_RESPONSE_SIZE];
-    char box_name[BOX_NAME_SIZE];
 
     // if no boxes exist send response with last=1 and box_name with just '\0's
     if (box_count == 0) {
@@ -130,11 +129,8 @@ void box_list_session(char *fifo_path) {
     }
 
     for (size_t i = 0; i < box_count; i++) {
-        // remove / from box path
-        memcpy(box_name, boxes[i]->path + 1, BOX_NAME_SIZE);
-
-        // create and send response
-        create_list_response(response, i == box_count - 1, boxes[i]->path,
+        // create and send response, box path +1 to remove the '/'
+        create_list_response(response, i == box_count - 1, boxes[i]->path + 1,
                              boxes[i]->message_count, boxes[i]->n_publishers,
                              boxes[i]->n_subscribers);
         send_content(fifo_path, response, LIST_RESPONSE_SIZE);

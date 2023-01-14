@@ -30,23 +30,9 @@ void finish_manager(int sig) {
     exit(sig);
 }
 
-void sort_box_responses(char **responses, size_t count) {
-    char temp[LIST_RESPONSE_SIZE];
-    for (size_t i = 0; i <= count; i++)
-        for (size_t j = i + 1; j <= count; j++) {
-            if (strncmp(responses[i * LIST_RESPONSE_SIZE] +
-                            LIST_RESPONSE_NAME_OFFSET,
-                        responses[j * LIST_RESPONSE_SIZE] +
-                            LIST_RESPONSE_NAME_OFFSET,
-                        BOX_NAME_SIZE) > 0) {
-                memcpy(temp, responses[i * LIST_RESPONSE_SIZE],
-                       LIST_RESPONSE_SIZE);
-                memcpy(responses[i * LIST_RESPONSE_SIZE],
-                       responses[j * LIST_RESPONSE_SIZE], LIST_RESPONSE_SIZE);
-                memcpy(responses[j * LIST_RESPONSE_SIZE], temp,
-                       LIST_RESPONSE_SIZE);
-            }
-        }
+int comparator(const void *r1, const void *r2) {
+    return strcmp((char *)(r1 + LIST_RESPONSE_NAME_OFFSET),
+                  (char *)(r2 + LIST_RESPONSE_NAME_OFFSET));
 }
 
 void list_boxes_request(char *request, char *server_fifo, char *fifo) {
@@ -62,44 +48,53 @@ void list_boxes_request(char *request, char *server_fifo, char *fifo) {
     }
 
     char **responses, box_name[BOX_NAME_SIZE];
-    responses = malloc(BUFFER_SIZE * LIST_RESPONSE_SIZE);
+    responses = malloc(BUFFER_SIZE);
     uint8_t op_code, last;
     uint64_t box_size, n_publishers, n_subscribers;
-    size_t box_count = 0;
+    size_t b_count = 0;
     do {
         // receive response
-        if (receive_content(fifo, responses[box_count * LIST_RESPONSE_SIZE],
-                            LIST_RESPONSE_SIZE) == -1) {
+        responses[b_count] = malloc(LIST_RESPONSE_SIZE);
+        if (receive_content(fifo, responses[b_count], LIST_RESPONSE_SIZE) ==
+            -1) {
             fprintf(stdout, "%s\n", SERVER_ERROR);
             finish_manager(EXIT_FAILURE);
         }
 
         // increment box_count and realloc buffer if necessary (current buffer
         // size exceeded)
-        box_count++;
-        if (box_count % BUFFER_SIZE == 0) {
-            responses = realloc(responses, LIST_RESPONSE_SIZE * BUFFER_SIZE *
-                                               (box_count / BUFFER_SIZE + 1));
+        parse_list_response(responses[b_count++], &op_code, &last, box_name,
+                            &box_size, &n_publishers, &n_subscribers);
+        if (b_count % BUFFER_SIZE == 0) {
+            responses =
+                realloc(responses, BUFFER_SIZE * (b_count / BUFFER_SIZE + 1));
         }
     } while (!last);
 
     // if no boxes exist
-    if (box_count == 1 && strncmp(responses[0] + LIST_RESPONSE_NAME_OFFSET, "",
-                                  BOX_NAME_SIZE) == 0) {
+    if (b_count == 1 && strncmp(responses[0] + LIST_RESPONSE_NAME_OFFSET, "",
+                                BOX_NAME_SIZE) == 0) {
         fprintf(stdout, "NO BOXES FOUND\n");
+        for (size_t i = 0; i < b_count; i++)
+            free(responses[i]);
+        free(responses);
         return;
     }
 
-    sort_box_responses(responses, box_count);
+    qsort(responses, b_count, LIST_RESPONSE_SIZE, comparator);
 
     // write boxes (sorted) to stdout
-    for (size_t i = 0; i < box_count; i++) {
-        parse_list_response(responses[i * LIST_RESPONSE_SIZE], &op_code, &last,
-                            box_name, &box_size, &n_publishers, &n_subscribers);
+    for (size_t i = 0; i < b_count; i++) {
+        parse_list_response(responses[i], &op_code, &last, box_name, &box_size,
+                            &n_publishers, &n_subscribers);
 
         fprintf(stdout, "%s %zu %zu %zu\n", box_name, box_size, n_publishers,
                 n_subscribers);
     }
+
+    for (size_t i = 0; i < b_count; i++)
+        free(responses[i]);
+    free(responses);
 }
 
 int main(int argc, char **argv) {
@@ -130,7 +125,7 @@ int main(int argc, char **argv) {
     } else if (argc == 3 && !strcmp(argv[2], "list")) {
         // list box request -> diferent function
         list_boxes_request(request, argv[1], path);
-        return 0;
+        finish_manager(EXIT_SUCCESS);
     } else {
         fprintf(stdout, "%s\n", USAGE);
         finish_manager(EXIT_FAILURE);
@@ -162,5 +157,6 @@ int main(int argc, char **argv) {
         finish_manager(EXIT_FAILURE);
     }
     fprintf(stdout, "OK\n");
+    finish_manager(EXIT_SUCCESS);
     return 0;
 }
