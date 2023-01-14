@@ -200,15 +200,15 @@ void box_deletion_session(char *fifo_path, char *box_path) {
     send_content(fifo_path, response, RESPONSE_SIZE);
 }
 
-void publisher_session(char *fifo_path, int id) {
+void publisher_session(char *fifo_path, char *box_path) {
     char buffer[MESSAGE_SIZE];
     char contents[MESSAGE_CONTENT_SIZE];
+    int id = box_lookup(box_path);
 
-    // save the box path so it's possible to check if the box was deleted
-    char box_path[BOX_PATH_SIZE];
-    memcpy(box_path, boxes[id]->path, BOX_PATH_SIZE);
+    if (id == -1)
+        return;
 
-    // stop if box already as a publisher
+    // stop if box already has a publisher
     if (boxes[id]->n_publishers > 0) {
         unlink(fifo_path); // for the subscriber to know there was an error
         return;
@@ -258,8 +258,12 @@ void publisher_session(char *fifo_path, int id) {
     boxes[id]->n_publishers--;
 }
 
-void subscriber_session(char *fifo_path, int id) {
-    int tfs_fd = tfs_open(boxes[id]->path, 0);
+void subscriber_session(char *fifo_path, char *box_path) {
+    int id = box_lookup(box_path);
+    if (id == -1)
+        return;
+
+    int tfs_fd = tfs_open(box_path, 0);
     if (tfs_fd == -1)
         return;
 
@@ -317,23 +321,12 @@ void *consumer() {
         char box_path[BOX_PATH_SIZE];
         snprintf(box_path, BOX_PATH_SIZE, "/%s", box_name);
 
-        int id;
         switch (op_code) {
         case PUBLISHER:
-            // If the box doesnt exist, reject the publisher
-            if ((id = box_lookup(box_path)) == -1) {
-                unlink(fifo); // for the subscriber to know there was an error
-                break;
-            }
-            publisher_session(fifo, id);
+            publisher_session(fifo, box_path);
             break;
         case SUBSCRIBER:
-            // If the box doesnt exist, reject the subscriber
-            if ((id = box_lookup(box_path)) == -1) {
-                unlink(fifo); // for the subscriber to know there was an error
-                break;
-            }
-            subscriber_session(fifo, id);
+            subscriber_session(fifo, box_path);
             break;
         case BOX_CREATION: {
             box_creation_session(fifo, box_path);
