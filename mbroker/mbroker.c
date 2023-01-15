@@ -45,32 +45,8 @@ size_t boxes_allocated_size;
 pc_queue_t *pc_queue;
 char *path;
 
-void server_destroy() {
-    unlink(path);
-
-    ALWAYS_ASSERT(tfs_destroy() == 0, "tfs_destroy critical error");
-
-    for (size_t i = 0; i < boxes_allocated_size; i++) {
-        MUTEX_DESTROY(box_mutex + i);
-        COND_DESTROY(box_cond + i);
-        RWLOCK_DESTROY(box_rwl + i);
-        free(boxes[i]);
-    }
-
-    MUTEX_DESTROY(&box_crdel_mutex);
-    pcq_destroy(pc_queue);
-
-    free(boxes);
-    free(box_mutex);
-    free(box_cond);
-    free(box_rwl);
-    free(free_box);
-    free(pc_queue);
-}
-
 void finish_mbroker(int sig) {
-    server_destroy();
-
+    unlink(path);
     if (sig == SIGINT)
         exit(EXIT_SUCCESS);
     exit(sig);
@@ -552,11 +528,6 @@ int main(int argc, char **argv) {
 
     pthread_t threads[sessions];
     server_init(threads, sessions);
-
-    // Setting up SIGINT handling
-    struct sigaction act;
-    act.sa_handler = &finish_mbroker;
-    sigaction(SIGINT, &act, NULL);
 
     for (;;) {
         char buffer[REQUEST_SIZE];

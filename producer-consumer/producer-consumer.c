@@ -69,12 +69,11 @@ int pcq_enqueue(pc_queue_t *queue, void *elem) {
     if (pthread_mutex_lock(&queue->pcq_head_lock) != 0)
         return -1;
 
-    queue->pcq_buffer[queue->pcq_head] = elem;
-    queue->pcq_head = (queue->pcq_head + 1) % queue->pcq_capacity;
-
     if (pthread_mutex_lock(&queue->pcq_current_size_lock) != 0)
         return -1;
 
+    queue->pcq_buffer[queue->pcq_head] = elem;
+    queue->pcq_head = (queue->pcq_head + 1) % queue->pcq_capacity;
     queue->pcq_current_size++;
 
     if (pthread_mutex_unlock(&queue->pcq_current_size_lock) != 0)
@@ -103,13 +102,11 @@ void *pcq_dequeue(pc_queue_t *queue) {
     if (pthread_mutex_lock(&queue->pcq_tail_lock) != 0)
         return NULL;
 
-    void *elem;
-    elem = queue->pcq_buffer[queue->pcq_tail];
-    queue->pcq_tail = (queue->pcq_tail + 1) % queue->pcq_capacity;
-
     if (pthread_mutex_lock(&queue->pcq_current_size_lock) != 0)
         return NULL;
 
+    void *elem = queue->pcq_buffer[queue->pcq_tail];
+    queue->pcq_tail = (queue->pcq_tail + 1) % queue->pcq_capacity;
     queue->pcq_current_size--;
 
     if (pthread_mutex_unlock(&queue->pcq_current_size_lock) != 0)
