@@ -99,7 +99,7 @@ box_t *create_box(char *box_path) {
 
 int box_lookup(char *box_path) {
     for (int i = 0; i < boxes_allocated_size; i++)
-        if (strncmp(box_path, boxes[i]->path, BOX_PATH_SIZE) == 0)
+        if (!free_box[i] && strncmp(box_path, boxes[i]->path, BOX_PATH_SIZE) == 0)
             return i;
     return -1;
 }
