@@ -98,7 +98,7 @@ box_t *create_box(char *box_path) {
 }
 
 int box_lookup(char *box_path) {
-    for (int i = 0; i < box_count; i++)
+    for (int i = 0; i < boxes_allocated_size; i++)
         if (strncmp(box_path, boxes[i]->path, BOX_PATH_SIZE) == 0)
             return i;
     return -1;
@@ -234,10 +234,12 @@ void box_deletion_session(char *fifo_path, char *box_path) {
 void publisher_session(char *fifo_path, char *box_path) {
     char buffer[MESSAGE_SIZE];
     char contents[MESSAGE_CONTENT_SIZE];
-    int id = box_lookup(box_path);
 
-    if (id == -1)
+    int id = box_lookup(box_path);
+    if (id == -1) {
+        unlink(fifo_path); // for the publisher to know there was an error
         return;
+    }
 
     if (pthread_rwlock_wrlock(box_rwl + id) != 0) {
         fprintf(stdout, "pthread_rwlock_wrlock critical error\n");
@@ -246,7 +248,7 @@ void publisher_session(char *fifo_path, char *box_path) {
 
     // stop if box already has a publisher
     if (boxes[id]->n_publishers > 0) {
-        unlink(fifo_path); // for the subscriber to know there was an error
+        unlink(fifo_path); // for the publisher to know there was an error
         return;
     }
     boxes[id]->n_publishers++;
@@ -321,12 +323,16 @@ void publisher_session(char *fifo_path, char *box_path) {
 
 void subscriber_session(char *fifo_path, char *box_path) {
     int id = box_lookup(box_path);
-    if (id == -1)
+    if (id == -1) {
+        unlink(fifo_path); // for the subscriber to know there was an error
         return;
+    }
 
     int tfs_fd = tfs_open(box_path, 0);
-    if (tfs_fd == -1)
+    if (tfs_fd == -1) {
+        unlink(fifo_path); // for the subscriber to know there was an error
         return;
+    }
 
     if (pthread_rwlock_wrlock(box_rwl + id) != 0) {
         fprintf(stdout, "pthread_rwlock_wrlock critical error\n");
