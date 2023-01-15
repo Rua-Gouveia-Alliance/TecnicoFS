@@ -60,7 +60,7 @@ void list_boxes_request(char *request, char *server_fifo, char *fifo) {
             finish_manager(EXIT_FAILURE);
         }
 
-        // increment box_count and realloc buffer if necessary (current buffer
+        // increment b_count and realloc buffer if necessary (current buffer
         // size exceeded)
         parse_list_response(responses[b_count++], &op_code, &last, box_name,
                             &box_size, &n_publishers, &n_subscribers);

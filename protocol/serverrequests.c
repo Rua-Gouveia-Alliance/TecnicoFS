@@ -119,14 +119,17 @@ void parse_message(void *message, uint8_t *op_code, char *contents) {
 }
 
 int send_content(char *fifo, void *content, size_t size) {
-    int fd = open(fifo, O_WRONLY);
-    if (fd == -1)
-        return -1;
+    int fd;
+    do {
+        fd = open(fifo, O_WRONLY | O_NONBLOCK);
+        if (fd == -1)
+            return -1;
 
-    if (write(fd, content, size) == -1) {
-        close(fd);
-        return -1;
-    }
+        if (access(fifo, F_OK) != 0) {
+            close(fd);
+            return -1;
+        }
+    } while (write(fd, content, size) == -1);
 
     close(fd);
     return 0;
