@@ -99,7 +99,8 @@ box_t *create_box(char *box_path) {
 
 int box_lookup(char *box_path) {
     for (int i = 0; i < boxes_allocated_size; i++)
-        if (!free_box[i] && strncmp(box_path, boxes[i]->path, BOX_PATH_SIZE) == 0)
+        if (!free_box[i] &&
+            strncmp(box_path, boxes[i]->path, BOX_PATH_SIZE) == 0)
             return i;
     return -1;
 }
@@ -181,7 +182,7 @@ int add_box(char *box_path) {
     int i;
     for (i = 0; i < boxes_allocated_size; i++) {
         if (free_box[i]) {
-            boxes[i] = box; 
+            boxes[i] = box;
             free_box[i] = 0;
             break;
         }
@@ -249,6 +250,12 @@ void publisher_session(char *fifo_path, char *box_path) {
     // stop if box already has a publisher
     if (boxes[id]->n_publishers > 0) {
         unlink(fifo_path); // for the publisher to know there was an error
+
+        if (pthread_rwlock_unlock(box_rwl + id) != 0) {
+            fprintf(stdout, "pthread_rwlock_unlock critical error\n");
+            finish_mbroker(EXIT_FAILURE);
+        }
+
         return;
     }
     boxes[id]->n_publishers++;
