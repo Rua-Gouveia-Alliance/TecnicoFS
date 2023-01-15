@@ -111,8 +111,8 @@ int box_lookup(char *box_path) {
 }
 
 int remove_box(char *box_path) {
-    MUTEX_LOCK(&box_crdel_mutex);
     int index = box_lookup(box_path);
+    MUTEX_LOCK(&box_crdel_mutex);
     if (index == -1) {
         MUTEX_UNLOCK(&box_crdel_mutex);
         return -1;
@@ -214,6 +214,7 @@ void box_list_session(char *fifo_path) {
         char empty_name[BOX_NAME_SIZE];
         memset(empty_name, '\0', BOX_NAME_SIZE);
         create_list_response(response, 1, empty_name, 0, 0, 0);
+        send_content(fifo_path, response, LIST_RESPONSE_SIZE);
     }
 
     for (size_t i = 0; i < box_count; i++) {
@@ -290,16 +291,16 @@ void publisher_session(char *fifo_path, char *box_path) {
         uint8_t op_code;
         parse_message(buffer, &op_code, contents);
 
-        if (pthread_rwlock_wrlock(box_rwl + id) != 0) {
-            fprintf(stdout, "pthread_rwlock_wrlock critical error\n");
-            finish_mbroker(EXIT_FAILURE);
-        }
-
         // If the box has been deleted the session ends
         int tfs_fd = tfs_open(box_path, TFS_O_APPEND);
         if (tfs_fd == -1) {
             unlink(fifo_path); // for the subscriber to know there was an error
             break;
+        }
+
+        if (pthread_rwlock_wrlock(box_rwl + id) != 0) {
+            fprintf(stdout, "pthread_rwlock_wrlock critical error\n");
+            finish_mbroker(EXIT_FAILURE);
         }
 
         // Writing the contents to tfs
@@ -308,10 +309,12 @@ void publisher_session(char *fifo_path, char *box_path) {
         tfs_close(tfs_fd);
 
         // If writing to the box fails its because its been deleted
-        // TODO: what to do when the box is full? i'm just terminating the
-        // publisher (with an error)
         if (written_size == -1 || written_size < message_size) {
             unlink(fifo_path); // for the subscriber to know there was an error
+            if (pthread_rwlock_unlock(box_rwl + id) != 0) {
+                fprintf(stdout, "pthread_rwlock_unlock critical error\n");
+                finish_mbroker(EXIT_FAILURE);
+            }
             break;
         }
 
@@ -396,7 +399,7 @@ void subscriber_session(char *fifo_path, char *box_path) {
                 finish_mbroker(EXIT_FAILURE);
             }
 
-            if (m_count == boxes[id]->message_count) {
+            if (m_count >= boxes[id]->message_count) {
                 if (pthread_rwlock_unlock(box_rwl + id) != 0) {
                     fprintf(stdout, "pthread_rwlock_unlock critical error\n");
                     finish_mbroker(EXIT_FAILURE);
@@ -406,18 +409,8 @@ void subscriber_session(char *fifo_path, char *box_path) {
                 break;
         }
 
-        if (pthread_rwlock_unlock(box_rwl + id) != 0) {
-            fprintf(stdout, "pthread_rwlock_unlock critical error\n");
-            finish_mbroker(EXIT_FAILURE);
-        }
-
         if (pthread_mutex_unlock(box_mutex + id) != 0) {
             fprintf(stdout, "pthread_mutex_unlock critical error\n");
-            finish_mbroker(EXIT_FAILURE);
-        }
-
-        if (pthread_rwlock_rdlock(box_rwl + id) != 0) {
-            fprintf(stdout, "pthread_rwlock_wrlock critical error\n");
             finish_mbroker(EXIT_FAILURE);
         }
 
@@ -430,6 +423,12 @@ void subscriber_session(char *fifo_path, char *box_path) {
 
             create_message(buffer, ERROR_CODE, contents);
             send_content(fifo_path, buffer, MESSAGE_SIZE);
+
+            if (pthread_rwlock_unlock(box_rwl + id) != 0) {
+                fprintf(stdout, "pthread_rwlock_unlock critical error\n");
+                finish_mbroker(EXIT_FAILURE);
+            }
+
             break;
         }
 
@@ -482,14 +481,12 @@ void *consumer() {
         case SUBSCRIBER:
             subscriber_session(fifo, box_path);
             break;
-        case BOX_CREATION: {
+        case BOX_CREATION:
             box_creation_session(fifo, box_path);
             break;
-        }
-        case BOX_DELETION: {
+        case BOX_DELETION:
             box_deletion_session(fifo, box_path);
             break;
-        }
         case BOX_LIST:
             box_list_session(fifo);
             break;
