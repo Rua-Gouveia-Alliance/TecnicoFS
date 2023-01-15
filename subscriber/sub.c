@@ -58,6 +58,10 @@ int main(int argc, char **argv) {
         char buffer[MESSAGE_CONTENT_SIZE];
         parse_message(message, &op_code, buffer);
 
+        if (op_code == ERROR_CODE) {
+            finish_subscriber(EXIT_FAILURE);
+        }
+
         if (op_code != SUBSCRIBER_MESSAGE) {
             fprintf(stdout, "%s\n", OP_CODE_DIFF);
             finish_subscriber(EXIT_FAILURE);

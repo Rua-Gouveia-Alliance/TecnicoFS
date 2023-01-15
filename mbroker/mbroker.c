@@ -329,15 +329,28 @@ void publisher_session(char *fifo_path, char *box_path) {
 }
 
 void subscriber_session(char *fifo_path, char *box_path) {
+    char buffer[MESSAGE_SIZE];
+    char contents[MESSAGE_CONTENT_SIZE];
+
     int id = box_lookup(box_path);
     if (id == -1) {
-        unlink(fifo_path); // for the subscriber to know there was an error
+        // Sending error notification
+        memset(buffer, '\0', MESSAGE_SIZE);
+        memset(contents, '\0', MESSAGE_CONTENT_SIZE);
+
+        create_message(buffer, ERROR_CODE, contents);
+        send_content(fifo_path, buffer, MESSAGE_SIZE);
         return;
     }
 
     int tfs_fd = tfs_open(box_path, 0);
     if (tfs_fd == -1) {
-        unlink(fifo_path); // for the subscriber to know there was an error
+        // Sending error notification
+        memset(buffer, '\0', MESSAGE_SIZE);
+        memset(contents, '\0', MESSAGE_CONTENT_SIZE);
+
+        create_message(buffer, ERROR_CODE, contents);
+        send_content(fifo_path, buffer, MESSAGE_SIZE);
         return;
     }
 
@@ -354,10 +367,9 @@ void subscriber_session(char *fifo_path, char *box_path) {
     }
 
     int64_t m_count = 0;
-    char buffer[MESSAGE_SIZE];
-    char contents[MESSAGE_CONTENT_SIZE];
     for (;;) {
         memset(buffer, '\0', MESSAGE_SIZE);
+        memset(contents, '\0', MESSAGE_CONTENT_SIZE);
 
         if (pthread_mutex_lock(box_mutex + id) != 0) {
             fprintf(stdout, "pthread_mutex_lock critical error\n");
@@ -375,7 +387,12 @@ void subscriber_session(char *fifo_path, char *box_path) {
         // If reading from the box fails its because its been deleted
         if (tfs_read(tfs_fd, contents, boxes[id]->messages_size[m_count++]) ==
             -1) {
-            unlink(fifo_path); // for the subscriber to know there was an error
+            // Sending error notification
+            memset(buffer, '\0', MESSAGE_SIZE);
+            memset(contents, '\0', MESSAGE_CONTENT_SIZE);
+
+            create_message(buffer, ERROR_CODE, contents);
+            send_content(fifo_path, buffer, MESSAGE_SIZE);
             break;
         }
 
