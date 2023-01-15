@@ -450,6 +450,7 @@ void *consumer() {
         uint8_t op_code;
         char fifo[PIPE_PATH_SIZE], box_name[BOX_NAME_SIZE];
         parse_request(request, &op_code, fifo, box_name);
+        free(request);
 
         char box_path[BOX_PATH_SIZE];
         snprintf(box_path, BOX_PATH_SIZE, "/%s", box_name);
@@ -530,7 +531,7 @@ int main(int argc, char **argv) {
     server_init(threads, sessions);
 
     for (;;) {
-        char buffer[REQUEST_SIZE];
+        char *buffer = malloc(REQUEST_SIZE);
         if (receive_content(path, buffer, REQUEST_SIZE) == -1) {
             fprintf(stdout, "fifo was deleted\n");
             finish_mbroker(EXIT_FAILURE);
