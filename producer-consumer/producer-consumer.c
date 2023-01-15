@@ -59,9 +59,20 @@ int pcq_enqueue(pc_queue_t *queue, void *elem) {
     if (pthread_mutex_lock(&queue->pcq_pusher_condvar_lock) != 0)
         return -1;
 
-    while (queue->pcq_current_size == queue->pcq_capacity)
-        pthread_cond_wait(&queue->pcq_pusher_condvar,
-                          &queue->pcq_pusher_condvar_lock);
+    for (;;) {
+        if (pthread_mutex_lock(&queue->pcq_current_size_lock) != 0)
+            return -1;
+        if (queue->pcq_current_size == queue->pcq_capacity) {
+            if (pthread_mutex_unlock(&queue->pcq_current_size_lock) != 0)
+                return -1;
+            pthread_cond_wait(&queue->pcq_pusher_condvar,
+                              &queue->pcq_pusher_condvar_lock);
+        } else
+            break;
+    }
+
+    if (pthread_mutex_unlock(&queue->pcq_current_size_lock) != 0)
+        return -1;
 
     if (pthread_mutex_unlock(&queue->pcq_pusher_condvar_lock) != 0)
         return -1;
