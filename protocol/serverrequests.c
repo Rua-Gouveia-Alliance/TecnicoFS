@@ -120,15 +120,20 @@ void parse_message(void *message, uint8_t *op_code, char *contents) {
 
 int send_content(char *fifo, void *content, size_t size) {
     int fd;
-    do {
-        fd = open(fifo, O_WRONLY | O_NONBLOCK);
-        if (fd == -1)
-            return -1;
 
+    // open pipe without waiting for the other end
+    fd = open(fifo, O_WRONLY | O_NONBLOCK);
+    if (fd == -1)
+        return -1;
+
+    do {
+        // see if fifo still exists
         if (access(fifo, F_OK) != 0) {
             close(fd);
             return -1;
         }
+
+        // try to write (will give error if nobody is listening
     } while (write(fd, content, size) == -1);
 
     close(fd);
