@@ -275,7 +275,7 @@ void publisher_session(char *fifo_path, char *box_path) {
         }
 
         // Writing the contents to tfs
-        size_t message_size = strlen(contents);
+        size_t message_size = strlen(contents) + 1; // +1 for the \0
         ssize_t written_size = tfs_write(tfs_fd, contents, message_size);
         tfs_close(tfs_fd);
 
