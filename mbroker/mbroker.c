@@ -373,7 +373,7 @@ void subscriber_session(char *fifo_path, char *box_path) {
             finish_mbroker(EXIT_FAILURE);
         }
 
-        while (1) {
+        for (;;) {
             if (pthread_rwlock_rdlock(box_rwl + id) != 0) {
                 fprintf(stdout, "pthread_rwlock_wrlock critical error\n");
                 finish_mbroker(EXIT_FAILURE);
