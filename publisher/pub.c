@@ -14,6 +14,16 @@
 char *path;
 
 void finish_publisher(int sig) {
+    char buffer[MESSAGE_SIZE];
+    char contents[MESSAGE_CONTENT_SIZE];
+
+    // Sending error notification
+    memset(buffer, '\0', MESSAGE_SIZE);
+    memset(contents, '\0', MESSAGE_CONTENT_SIZE);
+
+    create_message(buffer, ERROR_CODE, contents);
+    send_content(path, buffer, MESSAGE_SIZE);
+
     unlink(path);
     if (sig == SIGINT)
         exit(EXIT_SUCCESS);

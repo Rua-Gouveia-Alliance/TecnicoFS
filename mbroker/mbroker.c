@@ -102,7 +102,8 @@ box_t *create_box(char *box_path) {
 int box_lookup(char *box_path) {
     MUTEX_LOCK(&box_crdel_mutex);
     for (int i = 0; i < boxes_allocated_size; i++)
-        if (!free_box[i] && strncmp(box_path, boxes[i]->path, BOX_PATH_SIZE) == 0) {
+        if (!free_box[i] &&
+            strncmp(box_path, boxes[i]->path, BOX_PATH_SIZE) == 0) {
             MUTEX_UNLOCK(&box_crdel_mutex);
             return i;
         }
@@ -290,6 +291,9 @@ void publisher_session(char *fifo_path, char *box_path) {
         // Processing the received message
         uint8_t op_code;
         parse_message(buffer, &op_code, contents);
+        if (op_code == ERROR_CODE) {
+            break;
+        }
 
         // If the box has been deleted the session ends
         int tfs_fd = tfs_open(box_path, TFS_O_APPEND);
