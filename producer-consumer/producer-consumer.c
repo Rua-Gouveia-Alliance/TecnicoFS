@@ -93,9 +93,20 @@ void *pcq_dequeue(pc_queue_t *queue) {
     if (pthread_mutex_lock(&queue->pcq_popper_condvar_lock) != 0)
         return NULL;
 
-    while (queue->pcq_current_size == 0)
-        pthread_cond_wait(&queue->pcq_popper_condvar,
-                          &queue->pcq_popper_condvar_lock);
+    for (;;) {
+        if (pthread_mutex_lock(&queue->pcq_current_size_lock) != 0)
+            return NULL;
+        if (queue->pcq_current_size == 0) {
+            if (pthread_mutex_unlock(&queue->pcq_current_size_lock) != 0)
+                return NULL;
+            pthread_cond_wait(&queue->pcq_popper_condvar,
+                              &queue->pcq_popper_condvar_lock);
+        } else
+            break;
+    }
+
+    if (pthread_mutex_unlock(&queue->pcq_current_size_lock) != 0)
+        return NULL;
 
     if (pthread_mutex_unlock(&queue->pcq_popper_condvar_lock) != 0)
         return NULL;
