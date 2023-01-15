@@ -111,9 +111,8 @@ int remove_box(char *box_path) {
 
     tfs_unlink(box_path);
     free(boxes[index]);
+    free_box[index] = 1;
     box_count--;
-    for (int i = index; i < box_count; i++)
-        boxes[i] = boxes[i + 1];
     return index;
 }
 
@@ -161,7 +160,7 @@ int realloc_boxes() {
             finish_mbroker(EXIT_FAILURE);
         }
 
-        free_box[boxes_allocated_size + i] = 0;
+        free_box[boxes_allocated_size + i] = 1;
     }
 
     boxes_allocated_size += BOXES_BLOCK;
@@ -179,8 +178,17 @@ int add_box(char *box_path) {
     if (box == NULL)
         return -1;
 
-    boxes[box_count++] = box;
-    return box_count - 1;
+    int i;
+    for (i = 0; i < boxes_allocated_size; i++) {
+        if (free_box[i]) {
+            boxes[i] = box; 
+            free_box[i] = 0;
+            break;
+        }
+    }
+
+    box_count++;
+    return i;
 }
 
 void box_list_session(char *fifo_path) {
@@ -442,7 +450,7 @@ void server_init(pthread_t *threads, size_t max_sessions) {
         MUTEX_INIT(box_mutex + i);
         COND_INIT(box_cond + i);
         RWLOCK_INIT(box_rwl + i);
-        free_box[i] = 0;
+        free_box[i] = 1;
     }
 
     pc_queue = malloc(sizeof(pc_queue_t));
