@@ -199,7 +199,7 @@ void box_list_session(char *fifo_path) {
     }
 
     for (size_t i = 0; i < box_count; i++) {
-        if (pthread_rwlock_wrlock(box_rwl + i) != 0) {
+        if (pthread_rwlock_rdlock(box_rwl + i) != 0) {
             fprintf(stdout, "pthread_rwlock_wrlock critical error\n");
             finish_mbroker(EXIT_FAILURE);
         }
