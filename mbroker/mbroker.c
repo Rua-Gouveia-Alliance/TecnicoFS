@@ -199,10 +199,19 @@ void box_list_session(char *fifo_path) {
     }
 
     for (size_t i = 0; i < box_count; i++) {
+        if (pthread_rwlock_wrlock(box_rwl + i) != 0) {
+            fprintf(stdout, "pthread_rwlock_wrlock critical error\n");
+            finish_mbroker(EXIT_FAILURE);
+        }
         // create and send response, box path +1 to remove the '/'
         create_list_response(response, i == box_count - 1, boxes[i]->path + 1,
                              boxes[i]->message_count, boxes[i]->n_publishers,
                              boxes[i]->n_subscribers);
+        if (pthread_rwlock_unlock(box_rwl + i) != 0) {
+            fprintf(stdout, "pthread_rwlock_unlock critical error\n");
+            finish_mbroker(EXIT_FAILURE);
+        }
+
         send_content(fd, fifo_path, response, LIST_RESPONSE_SIZE);
     }
 }
