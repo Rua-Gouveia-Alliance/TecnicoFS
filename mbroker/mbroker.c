@@ -186,12 +186,16 @@ int add_box(char *box_path) {
 void box_list_session(char *fifo_path) {
     char response[LIST_RESPONSE_SIZE];
 
+    int fd = open(fifo_path, O_WRONLY);
+    if (fd == -1)
+        finish_mbroker(EXIT_FAILURE);
+
     // if no boxes exist send response with last=1 and box_name with just '\0's
     if (box_count == 0) {
         char empty_name[BOX_NAME_SIZE];
         memset(empty_name, '\0', BOX_NAME_SIZE);
         create_list_response(response, 1, empty_name, 0, 0, 0);
-        send_content(fifo_path, response, LIST_RESPONSE_SIZE);
+        send_content(fd, fifo_path, response, LIST_RESPONSE_SIZE);
     }
 
     for (size_t i = 0; i < box_count; i++) {
@@ -199,7 +203,7 @@ void box_list_session(char *fifo_path) {
         create_list_response(response, i == box_count - 1, boxes[i]->path + 1,
                              boxes[i]->message_count, boxes[i]->n_publishers,
                              boxes[i]->n_subscribers);
-        send_content(fifo_path, response, LIST_RESPONSE_SIZE);
+        send_content(fd, fifo_path, response, LIST_RESPONSE_SIZE);
     }
 }
 
@@ -211,7 +215,10 @@ void box_creation_session(char *fifo_path, char *box_path) {
     } else {
         create_response(response, BOX_CREATION_ANS, 0, "");
     }
-    send_content(fifo_path, response, RESPONSE_SIZE);
+    int fd = open(fifo_path, O_WRONLY);
+    if (fd == -1)
+        finish_mbroker(EXIT_FAILURE);
+    send_content(fd, fifo_path, response, RESPONSE_SIZE);
 }
 
 void box_deletion_session(char *fifo_path, char *box_path) {
@@ -221,7 +228,10 @@ void box_deletion_session(char *fifo_path, char *box_path) {
     } else {
         create_response(response, BOX_DELETION_ANS, 0, "");
     }
-    send_content(fifo_path, response, RESPONSE_SIZE);
+    int fd = open(fifo_path, O_WRONLY);
+    if (fd == -1)
+        finish_mbroker(EXIT_FAILURE);
+    send_content(fd, fifo_path, response, RESPONSE_SIZE);
 }
 
 void publisher_session(char *fifo_path, char *box_path) {
@@ -257,19 +267,20 @@ void publisher_session(char *fifo_path, char *box_path) {
         finish_mbroker(EXIT_FAILURE);
     }
 
+    int fd = open(fifo_path, O_RDONLY);
+    if (fd == -1)
+        finish_mbroker(EXIT_FAILURE);
+
     for (;;) {
         memset(buffer, '\0', MESSAGE_SIZE);
 
         // If the pipe has been closed the session ends
-        if (receive_content(fifo_path, buffer, MESSAGE_SIZE) == -1)
+        if (receive_content(fd, fifo_path, buffer, MESSAGE_SIZE) == -1)
             break;
 
         // Processing the received message
         uint8_t op_code;
         parse_message(buffer, &op_code, contents);
-        if (op_code == ERROR_CODE) {
-            break;
-        }
 
         // If the box has been deleted the session ends
         int tfs_fd = tfs_open(box_path, TFS_O_APPEND);
@@ -329,25 +340,21 @@ void subscriber_session(char *fifo_path, char *box_path) {
     char buffer[MESSAGE_SIZE];
     char contents[MESSAGE_CONTENT_SIZE];
 
+    int fd = open(fifo_path, O_WRONLY);
+    if (fd == -1)
+        finish_mbroker(EXIT_FAILURE);
+
     int id = box_lookup(box_path);
     if (id == -1) {
         // Sending error notification
-        memset(buffer, '\0', MESSAGE_SIZE);
-        memset(contents, '\0', MESSAGE_CONTENT_SIZE);
-
-        create_message(buffer, ERROR_CODE, contents);
-        send_content(fifo_path, buffer, MESSAGE_SIZE);
+        unlink(fifo_path);
         return;
     }
 
     int tfs_fd = tfs_open(box_path, 0);
     if (tfs_fd == -1) {
         // Sending error notification
-        memset(buffer, '\0', MESSAGE_SIZE);
-        memset(contents, '\0', MESSAGE_CONTENT_SIZE);
-
-        create_message(buffer, ERROR_CODE, contents);
-        send_content(fifo_path, buffer, MESSAGE_SIZE);
+        unlink(fifo_path);
         return;
     }
 
@@ -398,11 +405,7 @@ void subscriber_session(char *fifo_path, char *box_path) {
         if (tfs_read(tfs_fd, contents, boxes[id]->messages_size[m_count++]) ==
             -1) {
             // Sending error notification
-            memset(buffer, '\0', MESSAGE_SIZE);
-            memset(contents, '\0', MESSAGE_CONTENT_SIZE);
-
-            create_message(buffer, ERROR_CODE, contents);
-            send_content(fifo_path, buffer, MESSAGE_SIZE);
+            unlink(fifo_path);
 
             if (pthread_rwlock_unlock(box_rwl + id) != 0) {
                 fprintf(stdout, "pthread_rwlock_unlock critical error\n");
@@ -421,7 +424,7 @@ void subscriber_session(char *fifo_path, char *box_path) {
         create_message(buffer, SUBSCRIBER_MESSAGE, contents);
 
         // If the pipe has been closed the session ends
-        if (send_content(fifo_path, buffer, MESSAGE_SIZE) == -1)
+        if (send_content(fd, fifo_path, buffer, MESSAGE_SIZE) == -1)
             break;
     }
 
@@ -530,9 +533,13 @@ int main(int argc, char **argv) {
     pthread_t threads[sessions];
     server_init(threads, sessions);
 
+    int fd = open(path, O_RDONLY);
+    if (fd == -1)
+        finish_mbroker(EXIT_FAILURE);
+
     for (;;) {
         char *buffer = malloc(REQUEST_SIZE);
-        if (receive_content(path, buffer, REQUEST_SIZE) == -1) {
+        if (receive_content(fd, path, buffer, REQUEST_SIZE) == -1) {
             fprintf(stdout, "fifo was deleted\n");
             finish_mbroker(EXIT_FAILURE);
         }

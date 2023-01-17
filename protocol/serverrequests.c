@@ -118,30 +118,26 @@ void parse_message(void *message, uint8_t *op_code, char *contents) {
     memcpy(contents, message + OP_CODE_SIZE, MESSAGE_CONTENT_SIZE);
 }
 
-int send_content(char *fifo, void *content, size_t size) {
-    int fd = open(fifo, O_WRONLY);
-    if (fd == -1)
+int send_content(int fd, char *fifo, void *content, size_t size) {
+    int check = open(fifo, O_RDONLY);
+    if (check == -1)
+        return -1;
+    close(check);
+
+    if (write(fd, content, size) == -1)
         return -1;
 
-    if (write(fd, content, size) == -1) {
-        close(fd);
-        return -1;
-    }
-
-    close(fd);
     return 0;
 }
 
-int receive_content(char *fifo, void *content, size_t size) {
-    int fd = open(fifo, O_RDONLY);
-    if (fd == -1)
+int receive_content(int fd, char *fifo, void *content, size_t size) {
+    int check = open(fifo, O_RDONLY);
+    if (check == -1)
+        return -1;
+    close(check);
+
+    if (read(fd, content, size) == -1)
         return -1;
 
-    if (read(fd, content, size) == -1) {
-        close(fd);
-        return -1;
-    }
-
-    close(fd);
     return 0;
 }

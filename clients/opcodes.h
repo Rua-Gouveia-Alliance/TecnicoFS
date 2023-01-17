@@ -1,8 +1,6 @@
 #ifndef _OP_CODES_H
 #define _OP_CODES_H
 
-#define ERROR_CODE 0
-
 #define PUBLISHER 1
 #define SUBSCRIBER 2
 

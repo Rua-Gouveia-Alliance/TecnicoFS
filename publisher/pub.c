@@ -14,16 +14,6 @@
 char *path;
 
 void finish_publisher(int sig) {
-    char buffer[MESSAGE_SIZE];
-    char contents[MESSAGE_CONTENT_SIZE];
-
-    // Sending error notification
-    memset(buffer, '\0', MESSAGE_SIZE);
-    memset(contents, '\0', MESSAGE_CONTENT_SIZE);
-
-    create_message(buffer, ERROR_CODE, contents);
-    send_content(path, buffer, MESSAGE_SIZE);
-
     unlink(path);
     if (sig == SIGINT)
         exit(EXIT_SUCCESS);
@@ -47,12 +37,19 @@ int main(int argc, char **argv) {
 
     // Creating the string that will be sent to the server and send
     char request[REQUEST_SIZE];
+    int req = open(argv[1], O_WRONLY);
+    if (req == -1)
+        finish_publisher(EXIT_FAILURE);
+
     create_request(request, PUBLISHER, path, box_name);
-    if (send_content(argv[1], request, REQUEST_SIZE) == -1) {
+    if (send_content(req, argv[1], request, REQUEST_SIZE) == -1) {
         fprintf(stdout, "invalid register pipe name\n");
         finish_publisher(EXIT_FAILURE);
     }
 
+    int fd = open(path, O_WRONLY);
+    if (fd == -1)
+        finish_publisher(EXIT_FAILURE);
     // Reading from stdin and sending it through the fifo
     char buffer[MESSAGE_CONTENT_SIZE];
     for (;;) {
@@ -70,7 +67,7 @@ int main(int argc, char **argv) {
         char message[MESSAGE_SIZE];
         create_message(message, PUBLISHER_MESSAGE, buffer);
 
-        if (send_content(path, message, MESSAGE_SIZE) == -1)
+        if (send_content(fd, path, message, MESSAGE_SIZE) == -1)
             finish_publisher(EXIT_FAILURE);
     }
 

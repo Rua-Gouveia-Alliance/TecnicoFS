@@ -40,8 +40,12 @@ void list_boxes_request(char *request, char *server_fifo, char *fifo) {
     memset(box, '\0', BOX_NAME_SIZE);
     create_request(request, BOX_LIST, fifo, box);
 
+    int req = open(server_fifo, O_WRONLY);
+    if (req == -1)
+        finish_manager(EXIT_FAILURE);
+
     // send request
-    if (send_content(server_fifo, request, REQUEST_SIZE) == -1) {
+    if (send_content(req, server_fifo, request, REQUEST_SIZE) == -1) {
         fprintf(stdout, "%s\n", SERVER_ERROR);
         finish_manager(EXIT_FAILURE);
     }
@@ -51,10 +55,15 @@ void list_boxes_request(char *request, char *server_fifo, char *fifo) {
     uint8_t op_code, last;
     uint64_t box_size, n_publishers, n_subscribers;
     size_t b_count = 0;
+
+    int fd = open(fifo, O_RDONLY);
+    if (fd == -1)
+        finish_manager(EXIT_FAILURE);
+
     do {
         // receive response
         responses[b_count] = malloc(LIST_RESPONSE_SIZE);
-        if (receive_content(fifo, responses[b_count], LIST_RESPONSE_SIZE) ==
+        if (receive_content(fd, fifo, responses[b_count], LIST_RESPONSE_SIZE) ==
             -1) {
             fprintf(stdout, "%s\n", SERVER_ERROR);
             finish_manager(EXIT_FAILURE);
@@ -130,8 +139,11 @@ int main(int argc, char **argv) {
         finish_manager(EXIT_FAILURE);
     }
 
+    int req = open(argv[1], O_WRONLY);
+    if (req == -1)
+        finish_manager(EXIT_FAILURE);
     // send request
-    if (send_content(argv[1], request, REQUEST_SIZE) == -1) {
+    if (send_content(req, argv[1], request, REQUEST_SIZE) == -1) {
         fprintf(stdout, "%s\n", SERVER_ERROR);
         finish_manager(EXIT_FAILURE);
     }
@@ -140,7 +152,11 @@ int main(int argc, char **argv) {
     char response[RESPONSE_SIZE], error[ERROR_SIZE];
     uint8_t op_code;
     int32_t return_code;
-    if (receive_content(path, response, RESPONSE_SIZE) == -1) {
+    int fd = open(path, O_RDONLY);
+    if (fd == -1)
+        finish_manager(EXIT_FAILURE);
+
+    if (receive_content(fd, path, response, RESPONSE_SIZE) == -1) {
         fprintf(stdout, "%s\n", SERVER_ERROR);
         finish_manager(EXIT_FAILURE);
     }

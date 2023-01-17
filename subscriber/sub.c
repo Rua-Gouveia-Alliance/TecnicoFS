@@ -39,28 +39,31 @@ int main(int argc, char **argv) {
 
     // Creating the string that will be sent to the server and send it
     char request[REQUEST_SIZE];
+    int req = open(argv[1], O_WRONLY);
+    if (req == -1)
+        finish_subscriber(EXIT_FAILURE);
+
     create_request(request, SUBSCRIBER, path, box_name);
-    if (send_content(argv[1], request, REQUEST_SIZE) == -1) {
+    if (send_content(req, argv[1], request, REQUEST_SIZE) == -1) {
         fprintf(stdout, "%s\n", SERVER_ERROR);
         finish_subscriber(EXIT_FAILURE);
     }
 
+    int fd = open(path, O_RDONLY);
+    if (fd == -1)
+        finish_subscriber(EXIT_FAILURE);
     // Reading to stdout what is sent through the FIFO
     char message[MESSAGE_SIZE];
     for (;;) {
         memset(message, '\0', MESSAGE_CONTENT_SIZE);
 
-        if (receive_content(path, message, MESSAGE_SIZE) == -1)
+        if (receive_content(fd, path, message, MESSAGE_SIZE) == -1)
             finish_subscriber(EXIT_FAILURE);
 
         // Printing the received message
         uint8_t op_code;
         char buffer[MESSAGE_CONTENT_SIZE];
         parse_message(message, &op_code, buffer);
-
-        if (op_code == ERROR_CODE) {
-            finish_subscriber(EXIT_FAILURE);
-        }
 
         if (op_code != SUBSCRIBER_MESSAGE) {
             fprintf(stdout, "%s\n", OP_CODE_DIFF);

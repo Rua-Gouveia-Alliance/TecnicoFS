@@ -41,8 +41,8 @@ void parse_list_response(void *response, uint8_t *op_code, uint8_t *last,
 
 void parse_message(void *message, uint8_t *op_code, char *contents);
 
-int send_content(char *fifo, void *content, size_t size);
+int send_content(int fd, char *fifo, void *content, size_t size);
 
-int receive_content(char *fifo, void *content, size_t size);
+int receive_content(int fd, char *fifo, void *content, size_t size);
 
 #endif
