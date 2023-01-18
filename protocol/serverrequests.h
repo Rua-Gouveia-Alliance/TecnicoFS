@@ -36,8 +36,8 @@ void parse_response(void *response, uint8_t *op_code, int32_t *return_code,
                     char *error);
 
 void parse_list_response(void *response, uint8_t *op_code, uint8_t *last,
-                         char *box_name, size_t *box_size, size_t *n_publishers,
-                         size_t *n_subscribers);
+                         char *box_name, uint64_t *box_size,
+                         uint64_t *n_publishers, uint64_t *n_subscribers);
 
 void parse_message(void *message, uint8_t *op_code, char *contents);
 
